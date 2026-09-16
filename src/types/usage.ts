@@ -38,6 +38,8 @@ export interface AppSettings {
   hideOnBlur: boolean
   refreshIntervalSeconds: number
   claudeIntegrationEnabled: boolean
+  /** Claude's status-line command from before the bridge was installed. */
+  claudePreviousStatusLine?: string | null
 }
 
 export interface Diagnostics {

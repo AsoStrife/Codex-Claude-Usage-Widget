@@ -80,8 +80,13 @@ export function statusHint(status: ProviderStatus, provider: string, error?: str
     case 'not-authenticated':
       return { title: `${provider} is not signed in`, detail: 'Sign in with your subscription account to report usage.' }
     case 'waiting-for-data':
+      // Claude's provider reports *why* it is waiting (integration off vs.
+      // simply no status-line payload yet); prefer that over the generic hint.
       return provider === 'Claude'
-        ? { title: 'Waiting for Claude usage data', detail: 'Use Claude Code once after enabling integration.' }
+        ? {
+            title: 'Waiting for Claude usage data',
+            detail: error ?? 'Use Claude Code once and its usage will appear here.',
+          }
         : { title: 'Waiting for usage data', detail: null }
     case 'error':
       return { title: 'Could not read usage', detail: error ?? null }

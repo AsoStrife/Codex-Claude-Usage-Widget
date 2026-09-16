@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod claude;
 mod commands;
 mod providers;
 mod settings;
@@ -21,6 +22,12 @@ const MIN_REFRESH_SECONDS: u64 = 15;
 const MAX_REFRESH_SECONDS: u64 = 3600;
 
 fn main() {
+    // Must come first: in bridge mode the process is a short-lived filter for
+    // Claude Code's status line and must never build a window or a tray icon.
+    if claude::bridge::run_if_requested() {
+        return;
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             window::show_popup_default(app);

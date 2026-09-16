@@ -79,13 +79,20 @@ impl Default for UsageSnapshot {
     }
 }
 
+// `default` on the container, not just the new field: settings files written
+// by an older build are missing keys, and without this the whole file fails to
+// deserialize and every setting silently resets.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
     pub start_with_windows: bool,
     pub hide_on_blur: bool,
     pub refresh_interval_seconds: u64,
     pub claude_integration_enabled: bool,
+    /// Claude's status-line command from before the bridge was installed. The
+    /// bridge forwards to it, and enabling/disabling the integration restores
+    /// it, so the user never loses their own status line.
+    pub claude_previous_status_line: Option<String>,
 }
 
 impl Default for AppSettings {
@@ -95,6 +102,7 @@ impl Default for AppSettings {
             hide_on_blur: true,
             refresh_interval_seconds: 60,
             claude_integration_enabled: false,
+            claude_previous_status_line: None,
         }
     }
 }

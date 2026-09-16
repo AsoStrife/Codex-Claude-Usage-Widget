@@ -8,6 +8,7 @@ const DEFAULTS: AppSettings = {
   hideOnBlur: true,
   refreshIntervalSeconds: 60,
   claudeIntegrationEnabled: false,
+  claudePreviousStatusLine: null,
 }
 
 /** Diagnostics are expensive (two subprocess spawns); reuse them this long. */

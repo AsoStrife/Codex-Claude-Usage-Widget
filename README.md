@@ -20,7 +20,7 @@ A Windows 11 system tray utility for monitoring OpenAI Codex and Anthropic Claud
 
 Click the system tray icon to reveal a compact floating widget:
 
-![Widget Preview](docs/widget-preview.svg)
+![Widget Preview](docs/widget-preview.png)
 
 ## Features
 
