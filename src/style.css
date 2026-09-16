@@ -20,15 +20,23 @@
 
 @layer base {
   html,
-  body,
-  #app {
+  body {
     height: 100%;
+    overflow: hidden;
+  }
+
+  /* Content-sized, so the app shell can be measured to drive the native
+     window height instead of being stretched to whatever the window is. */
+  #app {
+    height: auto;
     overflow: hidden;
   }
 
   body {
     margin: 0;
-    background: transparent;
+    /* Opaque: the native window is not transparent, so a see-through body
+       paints the window's default white behind the panel. */
+    background: var(--color-panel);
     color: var(--color-ink);
     font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, sans-serif;
     font-size: 13px;
@@ -59,14 +67,3 @@
   }
 }
 
-@layer components {
-  .fade-slide-enter-active,
-  .fade-slide-leave-active {
-    transition: opacity 140ms ease, transform 140ms ease;
-  }
-  .fade-slide-enter-from,
-  .fade-slide-leave-to {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-}

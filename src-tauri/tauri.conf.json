@@ -2,19 +2,27 @@
   "build": {
     "beforeBuildCommand": "npm run build",
     "beforeDevCommand": "npm run dev",
-    "devPath": "http://localhost:5183",
+    "devUrl": "http://localhost:5183",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
+        "label": "main",
         "fullscreen": false,
-        "height": 600,
+        "height": 420,
+        "width": 380,
         "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
         "title": "AI Usage Widget",
-        "width": 400,
-        "hiddenTitle": true,
-        "skip_taskbar": true
+        "decorations": false,
+        "transparent": false,
+        "shadow": true,
+        "visible": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "center": false
       }
     ],
     "security": {

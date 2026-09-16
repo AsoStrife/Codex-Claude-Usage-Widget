@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useUsageStore } from './stores/usage'
 import { useSettingsStore } from './stores/settings'
 import { invoke, isTauri, listen } from './lib/tauri'
@@ -13,16 +13,31 @@ const settings = useSettingsStore()
 const settingsOpen = ref(false)
 const root = ref<HTMLElement | null>(null)
 
-/** Keeps the window exactly as tall as its content, so no dead space is shown. */
-async function syncWindowHeight() {
-  if (!isTauri || !root.value) return
-  await nextTick()
-  const height = Math.ceil(root.value.getBoundingClientRect().height)
-  try {
-    await invoke('resize_popup', { height })
-  } catch {
-    /* the window may be closing */
-  }
+let pendingFrame = 0
+let lastSentHeight = -1
+
+/**
+ * Keeps the window exactly as tall as its content, so no dead space is shown.
+ *
+ * Measurements are coalesced into a single animation frame and identical
+ * heights are dropped: `resize_popup` is an IPC round-trip that triggers a
+ * layout, which the ResizeObserver would otherwise feed straight back in.
+ */
+function syncWindowHeight() {
+  if (!isTauri) return
+  if (pendingFrame) return
+  pendingFrame = requestAnimationFrame(() => {
+    pendingFrame = 0
+    const el = root.value
+    if (!el) return
+    const height = Math.ceil(el.getBoundingClientRect().height)
+    if (height <= 0 || height === lastSentHeight) return
+    lastSentHeight = height
+    void invoke('resize_popup', { height }).catch(() => {
+      // The window may be closing; let the next measurement retry.
+      lastSentHeight = -1
+    })
+  })
 }
 
 const providerList = computed(() => [usage.codex, usage.claude])
@@ -58,45 +73,55 @@ function onKeydown(event: KeyboardEvent) {
   }
 }
 
-async function toggleSettings() {
+function toggleSettings() {
   settingsOpen.value = !settingsOpen.value
-  if (settingsOpen.value) await settings.loadDiagnostics()
+  if (settingsOpen.value) void settings.loadDiagnostics()
 }
 
 let unlistenShown: (() => void) | null = null
 let resizeObserver: ResizeObserver | null = null
 
-onMounted(async () => {
+onMounted(() => {
   window.addEventListener('keydown', onKeydown)
-  await Promise.all([usage.initialize(), settings.initialize()])
 
+  // Wired up before any `await`: a rejected IPC call used to abort the rest of
+  // this hook, leaving the window stuck at its design-time height with no
+  // observer and no event subscriptions.
   if (root.value) {
-    resizeObserver = new ResizeObserver(() => void syncWindowHeight())
+    resizeObserver = new ResizeObserver(syncWindowHeight)
     resizeObserver.observe(root.value)
   }
-  await syncWindowHeight()
+  syncWindowHeight()
+
+  void usage.initialize()
+  void settings.initialize()
+
   // The backend re-emits this whenever the popup is revealed from the tray.
-  unlistenShown = await listen('popup://shown', () => {
+  void listen('popup://shown', () => {
     settingsOpen.value = false
-    void usage.refreshSnapshot()
+    void usage.refreshAll()
   })
+    .then((unlisten) => {
+      unlistenShown = unlisten
+    })
+    .catch(() => {
+      /* events unavailable: the polling fallback in the store still applies */
+    })
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  if (pendingFrame) cancelAnimationFrame(pendingFrame)
   unlistenShown?.()
   resizeObserver?.disconnect()
   usage.dispose()
 })
-
-// Provider cards grow and shrink as statuses change; follow them.
-watch([providerList, settingsOpen], () => void syncWindowHeight(), { deep: true })
 </script>
 
 <template>
   <div
     ref="root"
-    class="flex w-screen flex-col overflow-hidden border border-hairline bg-panel text-ink"
+    class="flex w-full flex-col overflow-hidden border border-hairline bg-panel text-ink"
   >
     <WidgetHeader
       :refreshing="usage.refreshing"
@@ -106,23 +131,26 @@ watch([providerList, settingsOpen], () => void syncWindowHeight(), { deep: true 
       @move-start="beginMove()"
     />
 
-    <main class="max-h-[420px] flex-1 space-y-2.5 overflow-y-auto px-3.5 pb-3">
+    <main class="max-h-[420px] space-y-2.5 overflow-y-auto px-3.5 pb-3">
       <ProviderCard v-for="quota in providerList" :key="quota.provider" :quota="quota" :now="usage.now" />
     </main>
 
-    <Transition name="fade-slide">
-      <SettingsPanel
-        v-if="settingsOpen"
-        :settings="settings.settings"
-        :diagnostics="settings.diagnostics"
-        :busy="settings.busy"
-        :now="usage.now"
-        :error="settings.lastError"
-        @set-autostart="settings.setStartWithWindows($event)"
-        @set-claude-integration="settings.setClaudeIntegration($event)"
-      />
-    </Transition>
+    <SettingsPanel
+      v-if="settingsOpen"
+      :settings="settings.settings"
+      :diagnostics="settings.diagnostics"
+      :busy="settings.busy"
+      :now="usage.now"
+      :error="settings.lastError"
+      @set-autostart="settings.setStartWithWindows($event)"
+      @set-claude-integration="settings.setClaudeIntegration($event)"
+    />
 
-    <WidgetFooter :providers="providerList" :now="usage.now" :error="usage.lastError" />
+    <WidgetFooter
+      :providers="providerList"
+      :now="usage.now"
+      :error="usage.lastError"
+      @move-start="beginMove()"
+    />
   </div>
 </template>

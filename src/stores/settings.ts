@@ -10,11 +10,16 @@ const DEFAULTS: AppSettings = {
   claudeIntegrationEnabled: false,
 }
 
+/** Diagnostics are expensive (two subprocess spawns); reuse them this long. */
+const DIAGNOSTICS_TTL_MS = 10_000
+
 export const useSettingsStore = defineStore('settings', () => {
   const settings = ref<AppSettings>({ ...DEFAULTS })
   const diagnostics = ref<Diagnostics | null>(null)
   const busy = ref(false)
   const lastError = ref<string | null>(null)
+  let diagnosticsLoadedAt = 0
+  let diagnosticsInFlight: Promise<Diagnostics> | null = null
 
   async function initialize() {
     if (!isTauri) return
@@ -25,12 +30,24 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  async function loadDiagnostics() {
+  async function loadDiagnostics(force = false) {
     if (!isTauri) return
+    // Diagnostics shell out to `codex --version` / `claude --version`; without
+    // this guard every settings toggle spawned another pair of processes.
+    const age = Date.now() - diagnosticsLoadedAt
+    if (!force && diagnostics.value !== null && age < DIAGNOSTICS_TTL_MS) return
+    if (diagnosticsInFlight) {
+      await diagnosticsInFlight.catch(() => undefined)
+      return
+    }
     try {
-      diagnostics.value = await invoke<Diagnostics>('get_diagnostics')
+      diagnosticsInFlight = invoke<Diagnostics>('get_diagnostics')
+      diagnostics.value = await diagnosticsInFlight
+      diagnosticsLoadedAt = Date.now()
     } catch (err) {
       lastError.value = String(err)
+    } finally {
+      diagnosticsInFlight = null
     }
   }
 
@@ -52,7 +69,7 @@ export const useSettingsStore = defineStore('settings', () => {
       const cmd = enabled ? 'enable_claude_integration' : 'disable_claude_integration'
       settings.value = await invoke<AppSettings>(cmd)
       lastError.value = null
-      await loadDiagnostics()
+      await loadDiagnostics(true)
     } catch (err) {
       lastError.value = String(err)
     } finally {
