@@ -1,0 +1,46 @@
+{
+  "name": "ai-usage-widget",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Windows 11 tray widget for monitoring Codex and Claude Code subscription usage",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "icons": "node scripts/generate-icons.mjs",
+    "tauri": "tauri",
+    "start": "tauri dev",
+    "build:exe": "npm run icons && node scripts/build-release.mjs all",
+    "build:msi": "npm run icons && node scripts/build-release.mjs msi",
+    "build:nsis": "npm run icons && node scripts/build-release.mjs nsis",
+    "build:portable": "npm run icons && node scripts/build-release.mjs portable",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "test:all": "npm run test && npm run test:rust",
+    "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
+    "fmt:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && cargo clean --manifest-path src-tauri/Cargo.toml"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.9.0",
+    "@tauri-apps/plugin-autostart": "^2.5.0",
+    "pinia": "^3.0.3",
+    "vue": "^3.5.22"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@tauri-apps/cli": "^2.9.1",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/test-utils": "^2.4.6",
+    "happy-dom": "^20.0.0",
+    "playwright": "^1.63.0",
+    "tailwindcss": "^4.1.14",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.7",
+    "vitest": "^3.2.4",
+    "vue-tsc": "^3.1.1"
+  }
+}

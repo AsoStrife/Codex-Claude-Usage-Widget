@@ -1,0 +1,72 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-panel: #0e1117;
+  --color-panel-raised: #161b23;
+  --color-hairline: #262d38;
+  --color-ink: #e8edf5;
+  --color-ink-dim: #96a2b4;
+  --color-ink-faint: #5d6877;
+
+  --color-codex: #4ade80;
+  --color-claude: #f59e6a;
+
+  --color-good: #4ade80;
+  --color-warn: #fbbf24;
+  --color-low: #f87171;
+
+  --radius-panel: 14px;
+}
+
+@layer base {
+  html,
+  body,
+  #app {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    margin: 0;
+    background: transparent;
+    color: var(--color-ink);
+    font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    cursor: default;
+  }
+
+  /* The popup is frameless: nothing here should feel like a web page. */
+  * {
+    -webkit-user-drag: none;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-hairline);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .fade-slide-enter-active,
+  .fade-slide-leave-active {
+    transition: opacity 140ms ease, transform 140ms ease;
+  }
+  .fade-slide-enter-from,
+  .fade-slide-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
