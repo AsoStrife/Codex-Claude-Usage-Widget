@@ -1,5 +1,5 @@
 import { copyFileSync, mkdirSync, readdirSync, statSync } from 'node:fs'
-import { basename, join, resolve } from 'node:path'
+import { basename, extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const projectDir = resolve(fileURLToPath(new URL('..', import.meta.url)))
@@ -7,6 +7,23 @@ const targetDir = process.env.BUILD_TARGET_DIR || join(projectDir, 'src-tauri', 
 const releaseDir = join(targetDir, 'release')
 const outputDir = join(projectDir, 'builds')
 const requested = process.argv[2] ?? 'all'
+
+const sleep = (milliseconds) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds)
+
+function copyFileWithRetry(source, destination) {
+  const attempts = 20
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      copyFileSync(source, destination)
+      return true
+    } catch (error) {
+      if (error?.code !== 'EBUSY') throw error
+      if (attempt < attempts) sleep(250)
+    }
+  }
+
+  return false
+}
 
 const artifactDirectories = {
   portable: releaseDir,
@@ -40,8 +57,16 @@ for (const type of requestedTypes) {
     throw new Error(`No ${type} artifact found in ${directory}`)
   }
 
-  const destination = join(outputDir, basename(artifact))
-  copyFileSync(artifact, destination)
+  let destination = join(outputDir, basename(artifact))
+  if (!copyFileWithRetry(artifact, destination)) {
+    const extension = extname(destination)
+    const name = basename(destination, extension)
+    const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-')
+    destination = join(outputDir, `${name}-${timestamp}${extension}`)
+    if (!copyFileWithRetry(artifact, destination)) {
+      throw new Error(`Could not copy ${artifact}: the source or destination remains locked.`)
+    }
+  }
   copied.push(destination)
 }
 
