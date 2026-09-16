@@ -1,0 +1,27 @@
+{
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run dev",
+    "devPath": "http://localhost:5183",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "fullscreen": false,
+        "height": 600,
+        "resizable": false,
+        "title": "AI Usage Widget",
+        "width": 400,
+        "hiddenTitle": true,
+        "skip_taskbar": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "productName": "AI Usage Widget",
+  "version": "0.1.0",
+  "identifier": "com.asostrife.ai-usage-widget"
+}
