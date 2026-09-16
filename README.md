@@ -1,8 +1,8 @@
-# 🤖 AI Usage Widget
+# AI Usage Widget
+
+A Windows 11 system tray utility for monitoring OpenAI Codex and Anthropic Claude Code subscription quota consumption. Displays real-time usage percentages, reset countdowns, and integration status—all accessible via an elegant floating popup.
 
 <div align="center">
-
-**Widget elegante per Windows 11** che monitora il consumo di quota di **Codex** (OpenAI) e **Claude Code** (Anthropic) direttamente dalla system tray.
 
 [![Build](https://img.shields.io/badge/Build-Passing-brightgreen)](#) 
 [![Windows 11](https://img.shields.io/badge/Windows-11+-0078D4)](#) 
@@ -10,470 +10,325 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6)](#) 
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-FFC131)](#)
 
-[📖 Documentazione](#-architettura) • [🚀 Quick Start](#-installation) • [🛠️ Build](#-come-buildare) • [🔐 Privacy](#-privacy)
+[Getting Started](#getting-started) • [Build Guide](#building) • [Architecture](plan.md) • [Privacy](#privacy--security)
 
 </div>
 
 ---
 
-## 📸 Anteprima
+## Preview
 
-Cliccando l'icona nella system tray, appare un'elegante finestra popup:
+Click the system tray icon to reveal a compact floating widget:
 
-```
-┌──────────────────────────────────────┐
-│ AI Usage                        🔄 ⚙ │
-│                                      │
-│ ● CODEX   PLUS                 11s ago│
-│ 5h    [████████████░░░░]  98% left   │
-│       resets in 4h 37m               │
-│ Weekly [██████████░░░░░░]  71% left  │
-│       Saturday 11:00                 │
-│                                      │
-│ ● CLAUDE  PRO                  12m ago│
-│ 5h    [██████████████░░░░]  90% left │
-│ Weekly [──────────────────]  Unavail.│
-│                                      │
-│ Updated 11s ago          Esc to close│
-└──────────────────────────────────────┘
-```
+![Widget Preview](docs/widget-preview.svg)
 
-📍 **Niente taskbar, niente finestre normali** — Appare solo nella tray!
+## Features
 
----
+- **Quota Monitoring** — Real-time consumption percentages for both 5-hour and weekly allocation windows
+- **Reset Countdowns** — Human-readable countdown timers for when quotas reset
+- **Dual Provider Support** — Integrated monitoring for both Codex (OpenAI) and Claude Code (Anthropic)
+- **Native System Tray** — Minimalist floating popup, no taskbar window, no background process
+- **Automatic Detection** — Detects installed Codex and Claude Code installations without configuration
+- **Secure Integration** — No credentials stored, no authentication files accessed, local-only operation
+- **Multi-Monitor Support** — Intelligent positioning across multiple displays with DPI awareness
+- **Smart Refresh** — Real-time updates when available, fallback polling with bounded backoff
+- **Settings Management** — Configure autostart behavior and provider integrations
+- **Diagnostics** — Built-in diagnostics for troubleshooting provider connectivity
 
-## ✨ Funzionalità Principali
+## Getting Started
 
-### 🎯 Core
-- **📊 Monitoraggio Live** — Visualizza quota 5-hour e weekly per Codex e Claude
-- **🔄 Auto-Refresh** — Aggiornamenti automatici + refresh on-demand
-- **⏱️ Countdown Precisi** — Mostra esattamente quando le quote si resettano
-- **🪟 Windows 11 Native** — Comportamento nativo della system tray (no taskbar window)
-- **⚡ Leggero** — Bassissimo footprint di memoria e CPU
-- **🎨 Dark Theme** — UI moderna e ottimizzata
+### System Requirements
 
-### 🔌 Integrazioni Provider
-
-#### **Codex (OpenAI)**
-✅ Autodetection CLI automatico  
-✅ JSON-RPC via App Server (nessun accesso file auth)  
-✅ Supporto multi-window (5h, weekly, custom)  
-✅ Real-time updates + fallback polling  
-
-#### **Claude Code (Anthropic)**
-✅ Bridge locale per status-line integration  
-✅ Nessuna credenziale richiesta  
-✅ Cache intelligente con filesystem watcher  
-✅ Preservazione configurazione status-line esistente  
-
-### ⚙️ Impostazioni & Controlli
-- **Avvio Automatico** — Parte con Windows
-- **Integrazione Claude** — Abilita con un clic
-- **Diagnostica** — Ispeziona versioni, percorsi, stati
-- **Comandi Rapidi**:
-  - `Esc` → Chiudi popup
-  - `Ctrl+R` → Refresh manuale
-  - Click tray → Toggle popup
-  - Right-click tray → Menu nativo
-
----
-
-## 🚀 Installation & Quick Start
-
-### Prerequisiti
-
-| Requisito | Versione |
-|-----------|----------|
-| **Windows** | 11 (x64) |
+| Requirement | Version |
+|---|---|
+| **OS** | Windows 11 (x64) |
 | **Node.js** | ≥ 20 LTS |
 | **npm** | ≥ 9 |
-| **Rust** | ≥ 1.77 (solo per build, opzionale per dev) |
-| **WebView2** | Auto-installato dall'installer |
+| **Rust** | ≥ 1.77 (for building; optional for development) |
+| **WebView2** | Automatically installed by the installer |
 
-### Codex e Claude (opzionali)
-- Se Codex è installato, il widget lo rileva automaticamente
-- Se Claude Code è installato, il widget lo rileva automaticamente
-- Nessuno è obbligatorio — il widget mostra "Not installed" se assente
+### Optional: Provider Installation
 
-### Dev Mode (Hot Reload)
+- **Codex CLI** — Detected automatically if installed; widget displays "Not installed" if absent
+- **Claude Code** — Detected automatically if installed; widget displays "Not installed" if absent
+
+Neither provider is required; the widget gracefully handles missing or unauthenticated installations.
+
+### Development Setup
 
 ```bash
-# Clone il repo
+# Clone repository
 git clone https://github.com/AsoStrife/Codex-Code-Widget.git
 cd Codex-Code-Widget
 
-# Installa dipendenze
+# Install dependencies
 npm install
 
-# Avvia in development (Vite + Tauri, hot reload)
-npm run dev              # Solo browser
-npm start                # App desktop (Tauri)
+# Start development server (browser with hot reload)
+npm run dev
+
+# Or launch as Tauri app (requires Rust)
+npm start
 ```
 
----
+### Build Commands
 
-## 🛠️ Come Buildare
+| Command | Output | Purpose |
+|---|---|---|
+| `npm run build` | Web bundle | Frontend only (no desktop wrapper) |
+| `npm run build:portable` | `.exe` | Standalone executable |
+| `npm run build:nsis` | `.exe` installer | Windows Setup installer |
+| `npm run build:msi` | `.msi` | Windows Installer format |
+| `npm run build:exe` | All formats | Full release build |
 
-### Build Frontend Solo
-```bash
-npm run build
-npm run typecheck
-```
-
-### Build Desktop App Completo
-
-```bash
-# Genera icone
-npm run icons
-
-# Build completo (tutti i formati)
-npm run build:exe
-
-# Oppure singolarmente:
-npm run build:portable   # Eseguibile standalone
-npm run build:nsis       # Installer NSIS
-npm run build:msi        # Installer MSI
-```
-
-**Output in `./builds/`:**
-```
-ai-usage-widget.exe                    Portable executable
-AI Usage Widget_x.y.z_x64-setup.exe    NSIS installer  
-AI Usage Widget_x.y.z_x64_en-US.msi    MSI installer
-```
-
-### Build Backend Rust
+**Build output:** `./builds/`
 
 ```bash
-npm run typecheck        # Verifica tipi Rust
-npm run test:rust        # Test unitari Rust
-npm run lint:rust        # Clippy linter
-npm run fmt:rust         # Format code
+npm run icons          # Generate tray icons from source
+npm run typecheck      # Type-check all code
+npm test               # Run frontend unit tests
+npm run test:rust      # Run backend tests
+npm run test:all       # Run all tests
+npm run clean          # Clean build artifacts
 ```
 
-### Utilità
-
-```bash
-npm test                 # Frontend tests (Vitest)
-npm run test:watch       # Watch mode
-npm run test:all         # Test JS + Rust
-npm run clean            # Pulisci build artifacts
-```
-
----
-
-## 🔌 Come Funzionano le Integrazioni
+## How Provider Integration Works
 
 ### Codex (OpenAI)
 
-Il widget mantiene un processo `codex app-server` live e comunica via **JSON-RPC over stdio**:
+The widget spawns and maintains a `codex app-server` child process, communicating via JSON-RPC over stdio:
 
-```
-1. Widget avvia: codex app-server
-2. Invia: { "method": "initialize" }
-3. Riceve: response + capabilities
-4. Chiama: { "method": "account/rateLimits/read" }
-5. Ascolta: account/rateLimits/updated notifications
-```
+1. Widget spawns: `codex app-server`
+2. Sends: `{ "method": "initialize" }`
+3. Receives initialization response and capabilities
+4. Calls: `{ "method": "account/rateLimits/read" }`
+5. Listens for: `account/rateLimits/updated` notifications
 
-**Dettagli:**
-- Le finestre sono matchate per durata (`windowDurationMins`): 300 = 5h, 10080 = weekly
-- Restart automatico con backoff se il processo termina
-- Job object garantisce terminazione pulita anche su crash
-- Nessun accesso a `auth.json` — tutto tramite App Server
+**Implementation Details:**
+- Quota windows are matched by duration (`windowDurationMins`): 300 = 5-hour, 10080 = weekly
+- Automatic process restart with bounded backoff on unexpected exit
+- Job object ensures clean termination even on crash or forced kill
+- No direct access to Codex `auth.json` file—all communication through App Server protocol
 
 ### Claude Code (Anthropic)
 
-Claude Code delega i `rate_limits` al comando configurato come "status-line".
+Claude Code forwards rate-limit data to the configured status-line command. The widget integrates by installing itself as that command:
 
-**Setup:**
-1. Abilita "Claude Integration" nel widget (⚙ → Settings)
-2. Widget si registra come:
-   ```
-   "C:\...\ai-usage-widget.exe" --claude-statusline-bridge
-   ```
+```
+"C:\...\ai-usage-widget.exe" --claude-statusline-bridge
+```
 
-**Funzionamento:**
-- Bridge mode legge JSON stdin (una volta), estrae solo quota numbers
-- Scrive snapshot atomico in `%LOCALAPPDATA%\ai-usage-widget\claude-usage.json`
-- Tauri/WebView **mai avviati** in questa modalità
-- Widget principale watch il file → UI aggiorna in ~300ms
+**Bridge Mode Operation:**
+- Executable reads a single JSON payload from stdin
+- Extracts only quota numbers (percentages and reset timestamps)
+- Writes atomic snapshot to `%LOCALAPPDATA%\ai-usage-widget\claude-usage.json`
+- Tauri WebView is never started in bridge mode
+- Main widget process watches the cache file for updates (~300ms refresh)
 
-**Preservazione Status-line:**
-- Se avevi una status-line custom, viene salvata e ripristinata
-- Il bridge l'esegue ad ogni update e ne specchia l'output
-- Disabilitando l'integrazione, la tua config torna al precedente
+**Status-Line Preservation:**
+- Any existing status-line command is saved before installation
+- Bridge mode executes the previous command on each update and mirrors its output
+- Disabling Claude integration automatically restores the prior configuration
 
-**First Run:** Claude mostra *Waiting for data* finché non usi Claude Code almeno una volta.
+**First Run:** Claude displays "Waiting for Claude usage data" until Claude Code is used at least once.
 
----
+## Architecture
 
-## 📋 Stack Tecnologico
+### Technology Stack
 
-| Layer | Tech | Nota |
-|-------|------|------|
+| Layer | Technology | Purpose |
+|---|---|---|
 | **Desktop Shell** | Tauri 2 + Rust | System tray, window management, provider lifecycle |
-| **Frontend** | Vue 3 + TypeScript | UI components, provider-agnostic |
-| **State Mgmt** | Pinia 3 | Centralized reactive state |
-| **Styling** | Tailwind CSS 4 | Utility-first CSS |
-| **Build** | Vite 7 | Lightning-fast bundler |
-| **Testing** | Vitest + Cargo | Unit + integration tests |
-| **Quality** | vue-tsc + Clippy | Type safety, linting |
+| **Frontend** | Vue 3 + TypeScript | UI components and layouts |
+| **State Management** | Pinia 3 | Reactive application state |
+| **Styling** | Tailwind CSS 4 | Utility-first CSS framework |
+| **Build Tool** | Vite 7 | Lightning-fast module bundler |
+| **Testing** | Vitest + Cargo | JavaScript and Rust test suites |
+| **Quality** | vue-tsc + Clippy | Type safety and linting |
 
----
-
-## 📂 Struttura del Progetto
+### Project Structure
 
 ```
 Codex-Code-Widget/
+├── src/                        # Frontend (Vue 3 + TypeScript)
+│   ├── App.vue                 # Root component
+│   ├── main.ts                 # Entry point
+│   ├── style.css               # Global theme and Tailwind config
+│   ├── components/             # Reusable Vue components
+│   ├── stores/                 # Pinia state stores
+│   ├── types/                  # TypeScript domain models
+│   └── lib/                    # Utilities (formatting, Tauri IPC)
 │
-├── src/                          # Frontend Vue 3 + TypeScript
-│   ├── App.vue                   # Root component
-│   ├── main.ts                   # Entry point
-│   ├── style.css                 # Global theme + Tailwind
-│   │
-│   ├── components/               # Vue components
-│   │   ├── ProviderCard.vue      # Card per provider
-│   │   ├── QuotaRow.vue          # Riga quota (5h/weekly)
-│   │   ├── ProgressBar.vue       # Barra progresso visuale
-│   │   ├── WidgetHeader.vue      # Header + pulsanti
-│   │   ├── WidgetFooter.vue      # Footer timestamp
-│   │   ├── ProviderStatus.vue    # Stati (waiting, error, etc)
-│   │   └── SettingsPanel.vue     # Panel settings/diagnostics
-│   │
-│   ├── stores/
-│   │   ├── usage.ts              # Pinia store quota providers
-│   │   └── settings.ts           # Pinia store settings
-│   │
-│   ├── types/
-│   │   └── usage.ts              # Domain types (ProviderQuota, etc)
-│   │
-│   └── lib/
-│       ├── tauri.ts              # Tauri invoke/events wrapper
-│       ├── format.ts             # Formattazione data/percentuali
-│       └── mock.ts               # Mock data per dev
-│
-├── src-tauri/                    # Backend Rust
+├── src-tauri/                  # Backend (Rust + Tauri)
 │   ├── src/
-│   │   ├── main.rs               # Tauri main entry
-│   │   ├── app.rs                # App init
-│   │   ├── tray.rs               # System tray icon + menu
-│   │   ├── window.rs             # Popup window management
-│   │   ├── state.rs              # Shared in-memory state
-│   │   ├── commands.rs           # Tauri IPC commands
-│   │   │
-│   │   ├── providers/            # Provider-agnostic layer
-│   │   │   ├── mod.rs
-│   │   │   ├── types.rs          # Normalized ProviderQuota
-│   │   │   ├── codex.rs          # Codex provider supervisor
-│   │   │   └── claude.rs         # Claude provider supervisor
-│   │   │
-│   │   ├── codex/                # Codex-specific
-│   │   │   ├── process.rs        # App Server subprocess
-│   │   │   ├── rpc.rs            # JSON-RPC protocol
-│   │   │   └── protocol.rs       # Message types
-│   │   │
-│   │   ├── claude/               # Claude-specific
-│   │   │   ├── bridge.rs         # Status-line bridge mode
-│   │   │   ├── config.rs         # Settings management
-│   │   │   └── cache.rs          # Cache watcher
-│   │   │
-│   │   └── platform/
-│   │       └── windows.rs        # Windows-specific code
-│   │
+│   │   ├── main.rs             # Tauri main entry
+│   │   ├── tray.rs             # System tray icon and menu
+│   │   ├── window.rs           # Popup window management
+│   │   ├── state.rs            # Shared mutable state
+│   │   ├── commands.rs         # IPC command handlers
+│   │   ├── providers/          # Normalized provider interface
+│   │   │   ├── codex.rs        # Codex provider implementation
+│   │   │   └── claude.rs       # Claude provider implementation
+│   │   ├── codex/              # Codex-specific modules
+│   │   │   ├── process.rs      # App Server subprocess
+│   │   │   ├── rpc.rs          # JSON-RPC protocol
+│   │   │   └── protocol.rs     # Message definitions
+│   │   ├── claude/             # Claude-specific modules
+│   │   │   ├── bridge.rs       # Status-line bridge mode
+│   │   │   ├── config.rs       # Configuration management
+│   │   │   └── cache.rs        # File watcher
+│   │   └── platform/           # Platform-specific code
+│   │       └── windows.rs      # Windows helper functions
 │   └── Cargo.toml
 │
 ├── scripts/
-│   ├── generate-icons.mjs        # Icon generation
-│   └── build-release.mjs         # Release orchestration
+│   ├── generate-icons.mjs      # Icon generation from source SVG
+│   └── build-release.mjs       # Release build orchestration
 │
-├── vite.config.ts                # Vite configuration
-├── tsconfig.json                 # TypeScript config
-├── package.json                  # npm dependencies
-├── plan.md                        # Implementation plan dettagliato
-└── README.md                      # Questo file
+├── vite.config.ts              # Vite bundler configuration
+├── tsconfig.json               # TypeScript compiler options
+├── package.json                # Node dependencies
+├── plan.md                      # Detailed implementation specification
+└── README.md                    # This file
 ```
 
-**Principio Architetturale:**
-Concetti provider-specifici (JSON-RPC, status-line payloads, `primary`/`secondary`) **restano nel Rust backend**. 
-Vue layer vede solo `ProviderQuota` normalizzato e provider-agnostico.
+**Architectural Principle:** Provider-specific concepts (JSON-RPC, status-line payloads, window classifications) remain encapsulated in the Rust backend. The Vue layer works exclusively with a normalized `ProviderQuota` model, ensuring UI independence from provider implementation details.
 
----
+## Usage & Behavior
 
-## 🎮 Comportamento dell'App
+### Interaction Model
 
-### Navigazione & Interazione
-- **Left-click tray** → Apri/chiudi popup (sopra icona)
-- **Right-click tray** → Menu nativo (Refresh, Settings, Quit, etc)
-- **Drag header** → Sposta widget (posizione salvata)
-- **Esc** → Chiudi popup (o settings panel se aperto)
-- **Ctrl+R** → Refresh manuale
+- **Left-click tray icon** → Toggle popup visibility above icon
+- **Right-click tray icon** → Context menu (Refresh, Settings, Quit)
+- **Drag title bar** → Reposition widget (position persists)
+- **Press Esc** → Close popup (or close settings panel if open)
+- **Press Ctrl+R** → Manual refresh
 
-### Finestra Popup
-- **Dimensioni:** ~380×330-420px (adattive al contenuto)
-- **Posizionamento:** Sopra tray icon, fallback intelligente (multi-monitor, scaling 100-200%)
-- **Comportamento:** Scompare al focus loss, no taskbar, always-on-top
-- **Close:** Chiudere popup ≠ quitare l'app (use tray → Quit)
+### Window Properties
 
-### Dati Mancanti
-- Missing window → Mostrato come `Not reported`, mai come full bar
-- Percentuali sempre "remaining" = `100 − used`
-- Provider not installed → Chiaramente indicato
-- Provider not authenticated → Chiaramente indicato
-- Waiting for data → Label di stato esplicito
+- **Dimensions:** Approximately 380×330–420 pixels (height adapts to content)
+- **Positioning:** Appears above tray icon with intelligent fallback positioning on multi-monitor setups; respects DPI scaling (100%–200%)
+- **Behavior:** Automatically hides on focus loss; does not appear in taskbar; remains on top while visible
+- **Lifecycle:** Closing the popup does not terminate the application (use tray menu → Quit)
 
-### Perché NO Token Counts?
+### Data Presentation
 
-Codex e Claude non espongono "fixed token bucket". Consumo varia per modello/workload.
-Entrambi espongono solo: **% used** + **reset timestamp**.
+- **Missing Windows:** Displayed as "Not reported" rather than empty or full bars
+- **Percentages:** Always shown as "remaining" (calculated as `100 − used`)
+- **Provider Status:** Clearly labeled if provider is not installed or not authenticated
+- **Waiting States:** Explicit status labels during initial data fetch
 
-Convertire in "tokens left" sarebbe una **guess presentata come fatto** — il widget mostra solo dati certi.
+### Why No Token Counts
 
----
+Codex and Claude subscription quotas are not fixed token buckets. Token consumption varies by model and workload characteristics. Both providers expose only percentage-used and reset timestamp information. Converting these percentages to "tokens remaining" would constitute speculation presented as fact—the widget displays only authoritative data.
 
-## 🔐 Privacy & Sicurezza
+## Privacy & Security
 
-### Garanzie
+### Data Handling Guarantees
 
-✅ **Zero network** — Nessuna chiamata esterna  
-✅ **Zero analytics** — No tracciamento  
-✅ **Zero credenziali** — Non memorizza token, passwords  
-✅ **No auth.json** — Non legge file Codex auth  
-✅ **No OAuth tokens** — Non tocca Anthropic tokens  
-✅ **No conversation content** — Non persiste chat  
-✅ **Atomic cache** — Transazioni filesystem safe  
+- ✅ **No external network calls** — All communication is local
+- ✅ **No telemetry or analytics** — Zero tracking
+- ✅ **No credential storage** — No API keys, tokens, or passwords persisted
+- ✅ **No direct file access** — Does not read Codex `auth.json` or Anthropic credential files
+- ✅ **No OAuth extraction** — Does not read or store OAuth tokens
+- ✅ **No conversation content** — Does not persist chat history or API payloads
+- ✅ **Atomic filesystem operations** — Cache writes use temp-file-then-rename pattern
 
-### Come Restano i Dati
+### Storage & Cache Details
 
-**Codex:**
-- Comunica solo via JSON-RPC protocol
-- Zero accesso diretto al filesystem auth
+**Codex Provider:**
+- All communication flows through the JSON-RPC protocol
+- Zero filesystem access to authentication or sensitive data
 
-**Claude:**
-- Cache locale contiene SOLO:
-  ```json
-  {
-    "fiveHour": {"usedPercentage": 23.5, "resetsAt": 1789502751},
-    "weekly": {"usedPercentage": 41.2, "resetsAt": 1789808435},
-    "updatedAt": 1789486202
-  }
-  ```
-- Niente token, niente credenziali, niente payload Claude
-
-**Memorizzazione:**
-- Locale: `%LOCALAPPDATA%\ai-usage-widget\`
-  - `settings.json` — autostart, integrazione toggle, etc
-  - `claude-usage.json` — Claude cache snapshot
-- Diagnostica mostra percorsi redatti
-
----
-
-## 📊 Colori & Tema
-
-Dark theme ottimizzato per la system tray:
-
-| Elemento | Colore | Hex |
-|----------|--------|-----|
-| Panel Background | Dark | `#0e1117` |
-| Panel Raised | Elevated | `#161b23` |
-| Text | Ink | `#e8edf5` |
-| Text Dim | Ink Dim | `#96a2b4` |
-| Text Faint | Ink Faint | `#5d6877` |
-| Border | Hairline | `#262d38` |
-| Accent Codex | Verde | `#4ade80` |
-| Accent Claude | Arancio | `#f59e6a` |
-| Warn (Stale) | Giallo | `#fbbf24` |
-| Error | Rosso | `#f87171` |
-
----
-
-## 🧪 Testing
-
-```bash
-# Frontend unit tests
-npm test
-npm run test:watch
-
-# Backend Rust tests
-npm run test:rust
-
-# Both
-npm run test:all
+**Claude Provider Cache:**
+The local cache contains only quota metadata:
+```json
+{
+  "fiveHour": {
+    "usedPercentage": 23.5,
+    "resetsAt": 1789502751
+  },
+  "weekly": {
+    "usedPercentage": 41.2,
+    "resetsAt": 1789808435
+  },
+  "updatedAt": 1789486202
+}
 ```
 
-**Acceptance Testing** (Windows 11):
-- Scaling 100%, 125%, 150%, 200%
-- Multi-monitor setups
-- Taskbar posizioni varie
-- Codex/Claude installed/missing
-- Auth stato vario
-- Focus loss handling
-- Tray click toggling
+**Local Storage Location:**
+- Directory: `%LOCALAPPDATA%\ai-usage-widget\`
+- Files: `settings.json`, `claude-usage.json`
+- Diagnostics redact filesystem paths in user-facing output
 
----
+## Troubleshooting
 
-## 🚀 Roadmap & Non-Goals
+### Widget does not appear in system tray
 
-### Potenziali Migliorie
-- 🌙 Light theme support
-- 📊 Historical usage charts
-- 🔔 Low quota notifications  
-- 💾 Usage data export
-- 🌍 macOS/Linux support
-- 🎯 Per-provider settings
-
-### Non-Goals MVP
-- Credential management UI
-- API billing dashboards
-- Per-project analytics
-- Cloud sync/accounts
-- Browser integrations
-- Token counting estimates
-
----
-
-## 🐛 Troubleshooting
-
-### Widget non appare in system tray
 ```bash
 npm run clean
 npm run icons
 npm run build:exe
 ```
 
-### Codex quota non si aggiorna
-- Verifica: `codex app-server --help`
-- Controlla Diagnostica (⚙ Settings)
+### Codex quota not updating
+
+- Verify Codex CLI availability: `codex app-server --help`
+- Check widget diagnostics (Settings → Diagnostics)
 - Rebuild: `npm run build:exe`
 
-### Claude quota non funziona
-- Verifica Claude Code autenticato
-- Abilita integrazione (⚙ → Claude Integration)
-- Usa Claude Code almeno una volta
-- Controlla diagnostica
+### Claude quota not working
 
-### High CPU / Performance
+- Verify Claude Code is authenticated
+- Enable Claude integration in widget settings
+- Use Claude Code at least once to trigger initial data fetch
+- Review diagnostics output
+
+### High CPU usage
+
 ```bash
 npm run clean
 npm run build:exe
 ```
 
----
-
-## 📝 Licenza
-
-MIT — vedi [LICENSE](LICENSE)
-
----
-
-## 🤝 Contributing
-
-Bug found? 🐛 [Apri una issue](https://github.com/AsoStrife/Codex-Code-Widget/issues)!
-
-Pull request benvenute! 🎉
+## Testing
 
 ```bash
-# Setup dev environment
+# Frontend unit tests (run once)
+npm test
+
+# Frontend tests (watch mode)
+npm run test:watch
+
+# Backend tests (Rust)
+npm run test:rust
+
+# All tests
+npm run test:all
+```
+
+### Platform Acceptance Testing
+
+Manual testing on Windows 11 with:
+- DPI scaling: 100%, 125%, 150%, 200%
+- Multi-monitor configurations
+- Taskbar position variations
+- Provider installed/missing scenarios
+- Provider authenticated/unauthenticated states
+- Window focus loss handling
+- Tray icon interaction patterns
+
+## License
+
+MIT License — see [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Found a bug? [Open an issue](https://github.com/AsoStrife/Codex-Code-Widget/issues)
+
+Pull requests welcome. To set up a development environment:
+
+```bash
 git clone https://github.com/AsoStrife/Codex-Code-Widget.git
 cd Codex-Code-Widget
 npm install
@@ -482,12 +337,4 @@ npm start
 
 ---
 
-<div align="center">
-
-**Made with ❤️ by Andrea Corriga**
-
-Implements detailed [plan.md](plan.md) architecture.
-
-[🌐 Website](https://visioscientiae.com) • [💻 GitHub](https://github.com/AsoStrife)
-
-</div>
+See [plan.md](plan.md) for the detailed technical specification and implementation roadmap.
