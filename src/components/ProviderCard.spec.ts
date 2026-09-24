@@ -37,13 +37,18 @@ describe('ProviderCard', () => {
     expect(text).toContain('41% left')
   })
 
-  it('shows a live countdown for the 5-hour window', () => {
-    expect(render(provider()).text()).toContain('resets in 2h 14m')
+  it('shows the countdown and exact local time for the 5-hour window', () => {
+    const reset = quotaWindow(28, 8040, 300)
+    const time = new Date(reset.resetsAt! * 1000)
+    const clock = `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
+    expect(render(provider()).text()).toContain(`resets in 2h 14m - ${clock}`)
   })
 
-  it('shows an absolute time for the weekly window', () => {
-    // 210000s ahead: a date plus a countdown, not just a countdown.
-    expect(render(provider()).text()).toMatch(/in 2d 10h/)
+  it('shows the countdown and complete local date and time for the weekly window', () => {
+    const reset = quotaWindow(59, 210000, 10080)
+    const date = new Date(reset.resetsAt! * 1000)
+    const dateTime = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+    expect(render(provider()).text()).toContain(`resets in 2d 10h - ${dateTime}`)
   })
 
   it('names the provider and its plan', () => {

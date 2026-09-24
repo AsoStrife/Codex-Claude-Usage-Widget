@@ -22,9 +22,12 @@ const claudeInstalled = computed(() => Boolean(props.diagnostics?.claudePath))
 const rows = computed(() => {
   const d = props.diagnostics
   if (!d) return []
+  const codexLabel = d.codexStatus === 'not-installed'
+    ? 'not found'
+    : d.codexVersion ?? (d.codexPath ? 'detected' : 'not found')
   return [
     ['Version', d.appVersion],
-    ['Codex', d.codexVersion ?? (d.codexPath ? 'detected' : 'not found')],
+    ['Codex', codexLabel],
     ['Codex app-server', d.codexAppServerStatus],
     ['Claude Code', d.claudeVersion ?? (d.claudePath ? 'detected' : 'not found')],
     ['Claude data', d.claudeCacheUpdatedAt ? formatRelativeAge(d.claudeCacheUpdatedAt, props.now) : 'none yet'],

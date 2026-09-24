@@ -5,6 +5,7 @@ import {
   formatPercentage,
   formatRelativeAge,
   formatResetClock,
+  formatResetDateTime,
   statusHint,
   toneForRemaining,
 } from './format'
@@ -69,21 +70,29 @@ describe('formatCountdown', () => {
 })
 
 describe('formatResetClock', () => {
-  it('omits the weekday when the reset is today', () => {
-    const now = new Date(2026, 8, 15, 9, 0, 0).getTime() / 1000
+  it('shows the local time in 24-hour format', () => {
     const later = new Date(2026, 8, 15, 18, 30, 0).getTime() / 1000
-    expect(formatResetClock(later, now)).toBe('18:30')
+    expect(formatResetClock(later)).toBe('18:30')
   })
 
-  it('includes the weekday for a later day', () => {
-    const now = new Date(2026, 8, 15, 9, 0, 0).getTime() / 1000
-    const thursday = new Date(2026, 8, 17, 9, 30, 0).getTime() / 1000
-    expect(formatResetClock(thursday, now)).toMatch(/09:30$/)
-    expect(formatResetClock(thursday, now)!.length).toBeGreaterThan(5)
+  it('pads single-digit hours and minutes', () => {
+    const early = new Date(2026, 8, 15, 8, 5, 0).getTime() / 1000
+    expect(formatResetClock(early)).toBe('08:05')
   })
 
   it('has nothing to show without a timestamp', () => {
-    expect(formatResetClock(null, 0)).toBeNull()
+    expect(formatResetClock(null)).toBeNull()
+  })
+})
+
+describe('formatResetDateTime', () => {
+  it('shows the complete local date and time', () => {
+    const reset = new Date(2026, 8, 17, 9, 30, 0).getTime() / 1000
+    expect(formatResetDateTime(reset)).toBe('17/09/2026 09:30')
+  })
+
+  it('has nothing to show without a timestamp', () => {
+    expect(formatResetDateTime(null)).toBeNull()
   })
 })
 

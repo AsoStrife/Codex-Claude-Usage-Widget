@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { QuotaWindow } from '../types/usage'
-import { formatCountdown, formatPercentage, formatResetClock, remainingOf } from '../lib/format'
+import { formatCountdown, formatPercentage, formatResetClock, formatResetDateTime, remainingOf } from '../lib/format'
 import ProgressBar from './ProgressBar.vue'
 
 const props = defineProps<{
@@ -12,15 +12,18 @@ const props = defineProps<{
 
 const remaining = computed(() => (props.window ? remainingOf(props.window) : null))
 const countdown = computed(() => (props.window ? formatCountdown(props.window.resetsAt, props.now) : null))
-const clock = computed(() => (props.window ? formatResetClock(props.window.resetsAt, props.now) : null))
-
-/** Long windows read better as an absolute date; short ones as a live countdown. */
 const isLongWindow = computed(() => (props.window?.durationMinutes ?? 0) > 1440)
+const resetTime = computed(() => {
+  if (!props.window) return null
+  return isLongWindow.value
+    ? formatResetDateTime(props.window.resetsAt)
+    : formatResetClock(props.window.resetsAt)
+})
 
 const resetLabel = computed(() => {
   if (!countdown.value) return null
   if (countdown.value === 'now') return 'resetting…'
-  return isLongWindow.value && clock.value ? `${clock.value} · in ${countdown.value}` : `resets in ${countdown.value}`
+  return `resets in ${countdown.value}${resetTime.value ? ` - ${resetTime.value}` : ''}`
 })
 </script>
 

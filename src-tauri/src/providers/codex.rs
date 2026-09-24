@@ -40,8 +40,33 @@ pub struct CodexState {
     session: TokioMutex<Option<Session>>,
 }
 
+enum SessionStartError {
+    MissingExecutable,
+    Other(String),
+}
+
 pub fn detect_path() -> Option<PathBuf> {
-    find_executable("codex")
+    find_executable("codex").or_else(default_install_path)
+}
+
+/// The Codex desktop installer places its CLI in this stable per-user folder,
+/// but a tray app can keep running with an older PATH after Codex is updated.
+/// Return the candidate even if metadata lookup fails: spawning it gives us
+/// the authoritative result and avoids reporting an installed CLI as absent.
+fn default_install_path() -> Option<PathBuf> {
+    #[cfg(windows)]
+    {
+        let path = PathBuf::from(std::env::var_os("LOCALAPPDATA")?)
+            .join("Programs")
+            .join("OpenAI")
+            .join("Codex")
+            .join("bin")
+            .join("codex.exe");
+        return Some(path);
+    }
+
+    #[cfg(not(windows))]
+    None
 }
 
 /// Fetches a fresh rate-limit snapshot, starting the app-server session if
@@ -51,8 +76,12 @@ pub async fn refresh(app: &AppHandle) -> ProviderQuota {
         return ProviderQuota::not_installed(ProviderId::Codex);
     };
 
-    if let Err(message) = ensure_session(app, &path).await {
-        return error_quota(message);
+    match ensure_session(app, &path).await {
+        Ok(()) => {}
+        Err(SessionStartError::MissingExecutable) => {
+            return ProviderQuota::not_installed(ProviderId::Codex)
+        }
+        Err(SessionStartError::Other(message)) => return error_quota(message),
     }
 
     let state = app.state::<AppState>();
@@ -87,7 +116,7 @@ pub async fn app_server_status(app: &AppHandle) -> &'static str {
     }
 }
 
-async fn ensure_session(app: &AppHandle, path: &std::path::Path) -> Result<(), String> {
+async fn ensure_session(app: &AppHandle, path: &std::path::Path) -> Result<(), SessionStartError> {
     let state = app.state::<AppState>();
     let mut guard = state.codex.session.lock().await;
     if guard.is_some() {
@@ -102,16 +131,22 @@ async fn ensure_session(app: &AppHandle, path: &std::path::Path) -> Result<(), S
         .stderr(std::process::Stdio::null())
         .kill_on_drop(true)
         .spawn()
-        .map_err(|err| format!("failed to start codex app-server: {err}"))?;
+        .map_err(|err| {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                SessionStartError::MissingExecutable
+            } else {
+                SessionStartError::Other(format!("failed to start codex app-server: {err}"))
+            }
+        })?;
 
     let stdin = child
         .stdin
         .take()
-        .ok_or_else(|| "codex app-server has no stdin".to_string())?;
+        .ok_or_else(|| SessionStartError::Other("codex app-server has no stdin".to_string()))?;
     let stdout = child
         .stdout
         .take()
-        .ok_or_else(|| "codex app-server has no stdout".to_string())?;
+        .ok_or_else(|| SessionStartError::Other("codex app-server has no stdout".to_string()))?;
 
     let pending: PendingMap = Arc::new(StdMutex::new(HashMap::new()));
     spawn_reader(app.clone(), stdout, pending.clone());
@@ -134,8 +169,11 @@ async fn ensure_session(app: &AppHandle, path: &std::path::Path) -> Result<(), S
             }
         }),
     )
-    .await?;
-    notify(&mut session, "initialized", None).await?;
+    .await
+    .map_err(SessionStartError::Other)?;
+    notify(&mut session, "initialized", None)
+        .await
+        .map_err(SessionStartError::Other)?;
 
     *guard = Some(session);
     Ok(())

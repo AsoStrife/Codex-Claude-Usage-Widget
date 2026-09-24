@@ -34,19 +34,20 @@ export function formatCountdown(resetsAt: number | null, nowSeconds: number): st
   return `${seconds}s`
 }
 
-/** Absolute clock label, e.g. "Thu 09:30" — or "09:30" when it resets today. */
-export function formatResetClock(resetsAt: number | null, nowSeconds: number): string | null {
+/** Local reset time in 24-hour format. */
+export function formatResetClock(resetsAt: number | null): string | null {
   if (resetsAt === null) return null
   const date = new Date(resetsAt * 1000)
-  const now = new Date(nowSeconds * 1000)
-  const time = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })
-  const sameDay =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  if (sameDay) return time
-  const weekday = date.toLocaleDateString(undefined, { weekday: 'short' })
-  return `${weekday} ${time}`
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+/** Local reset date and time, e.g. "17/09/2026 09:30". */
+export function formatResetDateTime(resetsAt: number | null): string | null {
+  if (resetsAt === null) return null
+  const date = new Date(resetsAt * 1000)
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  return `${day}/${month}/${date.getFullYear()} ${formatResetClock(resetsAt)}`
 }
 
 export function formatRelativeAge(updatedAt: number | null, nowSeconds: number): string {
