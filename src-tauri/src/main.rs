@@ -70,6 +70,8 @@ fn main() {
             commands::enable_claude_integration,
             commands::disable_claude_integration,
             commands::get_diagnostics,
+            commands::get_popup_pinned,
+            commands::set_popup_pinned,
             commands::hide_popup,
             commands::begin_popup_drag,
             commands::resize_popup,

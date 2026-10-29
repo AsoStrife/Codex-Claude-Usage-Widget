@@ -198,6 +198,8 @@ Codex-Code-Widget/
 
 ### Interaction Model
 
+Use the pin button in the top-right corner to keep the widget visible above other windows when you click elsewhere. Click it again to restore automatic hiding on focus loss. The pin remains active for the current app session; Esc and the tray icon can still hide the widget.
+
 - **Left-click tray icon** → Toggle popup visibility above icon
 - **Right-click tray icon** → Context menu (Refresh, Settings, Quit)
 - **Drag title bar** → Reposition widget (position persists)
@@ -208,7 +210,7 @@ Codex-Code-Widget/
 
 - **Dimensions:** Approximately 380×330–420 pixels (height adapts to content)
 - **Positioning:** Appears above tray icon with intelligent fallback positioning on multi-monitor setups; respects DPI scaling (100%–200%)
-- **Behavior:** Automatically hides on focus loss; does not appear in taskbar; remains on top while visible
+- **Behavior:** Automatically hides on focus loss unless pinned; does not appear in taskbar; remains on top while visible
 - **Lifecycle:** Closing the popup does not terminate the application (use tray menu → Quit)
 
 ### Data Presentation

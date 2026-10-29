@@ -174,6 +174,18 @@ pub async fn get_diagnostics(app: AppHandle) -> Diagnostics {
 }
 
 #[tauri::command]
+pub fn get_popup_pinned(app: AppHandle) -> bool {
+    app.state::<AppState>()
+        .popup_pinned
+        .load(std::sync::atomic::Ordering::Relaxed)
+}
+
+#[tauri::command]
+pub fn set_popup_pinned(app: AppHandle, pinned: bool) -> Result<bool, String> {
+    window::set_popup_pinned(&app, pinned)
+}
+
+#[tauri::command]
 pub fn hide_popup(app: AppHandle) {
     window::hide_popup(&app);
 }

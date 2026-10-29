@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::sync::{atomic::AtomicBool, Mutex};
 use std::time::Instant;
 
 use tauri::{PhysicalPosition, PhysicalSize};
@@ -21,6 +21,8 @@ pub struct AppState {
     pub usage: Mutex<UsageSnapshot>,
     pub codex: CodexState,
     pub tray_anchor: Mutex<Option<TrayAnchor>>,
+    /// Session-only pin: keeps the popup visible when another window is focused.
+    pub popup_pinned: AtomicBool,
     /// Blur is ignored until this instant. Windows briefly deactivates the
     /// window when a drag starts (`ReleaseCapture` + `WM_NCLBUTTONDOWN`), and
     /// without this guard "hide on blur" would close the popup the moment the
@@ -35,6 +37,7 @@ impl AppState {
             usage: Mutex::new(UsageSnapshot::default()),
             codex: CodexState::default(),
             tray_anchor: Mutex::new(None),
+            popup_pinned: AtomicBool::new(false),
             suppress_blur_until: Mutex::new(Instant::now()),
         }
     }

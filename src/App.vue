@@ -11,6 +11,9 @@ import SettingsPanel from './components/SettingsPanel.vue'
 const usage = useUsageStore()
 const settings = useSettingsStore()
 const settingsOpen = ref(false)
+const pinned = ref(false)
+const pinBusy = ref(isTauri)
+const pinError = ref<string | null>(null)
 const root = ref<HTMLElement | null>(null)
 
 let pendingFrame = 0
@@ -41,6 +44,20 @@ function syncWindowHeight() {
 }
 
 const providerList = computed(() => [usage.codex, usage.claude])
+
+async function togglePin() {
+  if (pinBusy.value) return
+  pinBusy.value = true
+  pinError.value = null
+  try {
+    const next = !pinned.value
+    pinned.value = isTauri ? await invoke<boolean>('set_popup_pinned', { pinned: next }) : next
+  } catch (error) {
+    pinError.value = `Unable to change widget pin: ${String(error)}`
+  } finally {
+    pinBusy.value = false
+  }
+}
 
 async function hideWindow() {
   if (!isTauri) return
@@ -96,6 +113,13 @@ onMounted(() => {
   void usage.initialize()
   void settings.initialize()
 
+  if (isTauri) {
+    void invoke<boolean>('get_popup_pinned')
+      .then((value) => { pinned.value = value })
+      .catch((error) => { pinError.value = `Unable to read widget pin: ${String(error)}` })
+      .finally(() => { pinBusy.value = false })
+  }
+
   // The backend re-emits this whenever the popup is revealed from the tray.
   void listen('popup://shown', () => {
     settingsOpen.value = false
@@ -126,8 +150,11 @@ onBeforeUnmount(() => {
     <WidgetHeader
       :refreshing="usage.refreshing"
       :settings-open="settingsOpen"
+      :pinned="pinned"
+      :pin-busy="pinBusy"
       @refresh="usage.refreshAll()"
       @toggle-settings="toggleSettings()"
+      @toggle-pin="togglePin()"
       @move-start="beginMove()"
     />
 
@@ -149,7 +176,7 @@ onBeforeUnmount(() => {
     <WidgetFooter
       :providers="providerList"
       :now="usage.now"
-      :error="usage.lastError"
+      :error="pinError || usage.lastError"
       @move-start="beginMove()"
     />
   </div>

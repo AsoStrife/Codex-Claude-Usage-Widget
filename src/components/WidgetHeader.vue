@@ -2,11 +2,14 @@
 defineProps<{
   refreshing: boolean
   settingsOpen: boolean
+  pinned: boolean
+  pinBusy: boolean
 }>()
 
 const emit = defineEmits<{
   refresh: []
   'toggle-settings': []
+  'toggle-pin': []
   'move-start': []
 }>()
 
@@ -24,6 +27,30 @@ function onMouseDown(event: MouseEvent) {
   >
     <h1 class="text-[13px] font-semibold tracking-tight text-ink">AI Usage</h1>
     <div class="ml-auto flex cursor-default items-center gap-1">
+      <button
+        type="button"
+        class="grid size-7 place-items-center rounded-md transition-colors hover:bg-hairline/60 hover:text-ink focus-visible:ring-1 focus-visible:ring-ink-faint focus-visible:outline-none disabled:opacity-50"
+        :class="pinned ? 'bg-hairline/60 text-ink' : 'text-ink-dim'"
+        :disabled="pinBusy"
+        :title="pinned ? 'Unpin widget' : 'Pin widget on top'"
+        :aria-label="pinned ? 'Unpin widget' : 'Pin widget on top'"
+        :aria-pressed="pinned"
+        @click="emit('toggle-pin')"
+      >
+        <svg
+          viewBox="0 0 16 16"
+          class="size-3.5 transition-transform"
+          :class="{ '-rotate-45': !pinned }"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M5 2h6M6 2v4l-2 3v1h8V9l-2-3V2M8 10v4" />
+        </svg>
+      </button>
       <button
         type="button"
         class="grid size-7 place-items-center rounded-md text-ink-dim transition-colors hover:bg-hairline/60 hover:text-ink focus-visible:ring-1 focus-visible:ring-ink-faint focus-visible:outline-none disabled:opacity-50"

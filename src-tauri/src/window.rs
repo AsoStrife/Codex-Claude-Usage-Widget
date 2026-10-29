@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use tauri::{
@@ -47,6 +48,19 @@ pub fn hide_popup(app: &AppHandle) {
     }
 }
 
+pub fn set_popup_pinned(app: &AppHandle, pinned: bool) -> Result<bool, String> {
+    let window = popup(app).ok_or_else(|| "main window not found".to_string())?;
+    // The regular tray popup is also topmost. Unpinning restores hide-on-blur
+    // while retaining that existing behavior for the next time it is opened.
+    window
+        .set_always_on_top(true)
+        .map_err(|err| err.to_string())?;
+    app.state::<AppState>()
+        .popup_pinned
+        .store(pinned, Ordering::Relaxed);
+    Ok(pinned)
+}
+
 /// Shows the popup without repositioning it (used by the tray menu's "Open"
 /// item, which has no click coordinates to anchor to).
 pub fn show_popup_default(app: &AppHandle) {
@@ -80,10 +94,7 @@ pub fn suppress_blur(app: &AppHandle) {
 /// clicked away, rather than on a transient deactivation caused by dragging.
 pub fn on_blur(app: &AppHandle) {
     let state = app.state::<AppState>();
-    if !state.settings.lock().unwrap().hide_on_blur {
-        return;
-    }
-    if Instant::now() < *state.suppress_blur_until.lock().unwrap() {
+    if !should_hide_on_blur(&state) {
         return;
     }
 
@@ -91,7 +102,9 @@ pub fn on_blur(app: &AppHandle) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(BLUR_CONFIRM_DELAY).await;
         let state = app.state::<AppState>();
-        if Instant::now() < *state.suppress_blur_until.lock().unwrap() {
+        // Recheck after the delay: the user may have pinned the popup while
+        // this focus-loss confirmation was pending.
+        if !should_hide_on_blur(&state) {
             return;
         }
         if let Some(window) = popup(&app) {
@@ -100,6 +113,12 @@ pub fn on_blur(app: &AppHandle) {
             }
         }
     });
+}
+
+fn should_hide_on_blur(state: &AppState) -> bool {
+    !state.popup_pinned.load(Ordering::Relaxed)
+        && state.settings.lock().unwrap().hide_on_blur
+        && Instant::now() >= *state.suppress_blur_until.lock().unwrap()
 }
 
 /// Resizes the popup to `logical_height` and re-anchors it to the tray icon,
@@ -185,5 +204,31 @@ fn to_physical_size(size: Size) -> PhysicalSize<u32> {
     match size {
         Size::Physical(s) => s,
         Size::Logical(s) => PhysicalSize::new(s.width as u32, s.height as u32),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::AppSettings;
+
+    #[test]
+    fn pin_blocks_blur_and_unpin_restores_it() {
+        let state = AppState::new(AppSettings::default());
+        assert!(should_hide_on_blur(&state));
+        state.popup_pinned.store(true, Ordering::Relaxed);
+        assert!(!should_hide_on_blur(&state));
+        state.popup_pinned.store(false, Ordering::Relaxed);
+        assert!(should_hide_on_blur(&state));
+    }
+
+    #[test]
+    fn unpinned_popup_still_respects_settings_and_drag_grace() {
+        let state = AppState::new(AppSettings::default());
+        state.settings.lock().unwrap().hide_on_blur = false;
+        assert!(!should_hide_on_blur(&state));
+        state.settings.lock().unwrap().hide_on_blur = true;
+        *state.suppress_blur_until.lock().unwrap() = Instant::now() + DRAG_BLUR_GRACE;
+        assert!(!should_hide_on_blur(&state));
     }
 }
