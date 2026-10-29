@@ -61,6 +61,7 @@ export function formatRelativeAge(updatedAt: number | null, nowSeconds: number):
 }
 
 export const STATUS_LABEL: Record<ProviderStatus, string> = {
+  disabled: 'Disabled',
   ready: 'Ready',
   'not-installed': 'Not installed',
   'not-authenticated': 'Not signed in',
@@ -76,6 +77,8 @@ export interface StatusHint {
 
 export function statusHint(status: ProviderStatus, provider: string, error?: string | null): StatusHint {
   switch (status) {
+    case 'disabled':
+      return { title: 'Monitoring disabled', detail: 'Enable this provider in settings to monitor its usage.' }
     case 'not-installed':
       return { title: `${provider} is not installed`, detail: 'Install the CLI and it will be detected automatically.' }
     case 'not-authenticated':
@@ -83,6 +86,12 @@ export function statusHint(status: ProviderStatus, provider: string, error?: str
     case 'waiting-for-data':
       // Claude's provider reports *why* it is waiting (integration off vs.
       // simply no status-line payload yet); prefer that over the generic hint.
+      if (provider === 'Antigravity') {
+        return {
+          title: 'Waiting for Antigravity usage data',
+          detail: error ?? 'Open Antigravity CLI and run /usage to refresh quota data.',
+        }
+      }
       return provider === 'Claude'
         ? {
             title: 'Waiting for Claude usage data',

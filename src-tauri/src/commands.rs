@@ -1,12 +1,12 @@
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_autostart::ManagerExt;
 
-use crate::claude;
 use crate::providers;
 use crate::settings;
 use crate::state::AppState;
 use crate::types::{AppSettings, Diagnostics, ProviderId, ProviderQuota, UsageSnapshot};
 use crate::window;
+use crate::{antigravity, claude};
 
 #[tauri::command]
 pub fn get_usage_snapshot(app: AppHandle) -> UsageSnapshot {
@@ -15,17 +15,31 @@ pub fn get_usage_snapshot(app: AppHandle) -> UsageSnapshot {
 
 #[tauri::command]
 pub async fn refresh_provider(app: AppHandle, provider: ProviderId) -> ProviderQuota {
-    let quota = match provider {
-        ProviderId::Codex => providers::codex::refresh(&app).await,
-        ProviderId::Claude => providers::claude::refresh(claude_integration_enabled(&app)),
+    let preferences = app.state::<AppState>().settings.lock().unwrap().clone();
+    let quota = if !preferences.monitoring.enabled(provider) {
+        ProviderQuota::disabled(provider)
+    } else {
+        match provider {
+            ProviderId::Codex => providers::codex::refresh(&app).await,
+            ProviderId::Claude => {
+                providers::claude::refresh(preferences.claude_integration_enabled)
+            }
+            ProviderId::Antigravity => {
+                providers::antigravity::refresh(preferences.antigravity_integration_enabled)
+            }
+        }
     };
 
     let state = app.state::<AppState>();
+    // A request may finish after the user has disabled its provider.
+    let preferences = state.settings.lock().unwrap();
+    let quota = if preferences.monitoring.enabled(provider) {
+        quota
+    } else {
+        ProviderQuota::disabled(provider)
+    };
     let mut usage = state.usage.lock().unwrap();
-    match provider {
-        ProviderId::Codex => usage.codex = quota.clone(),
-        ProviderId::Claude => usage.claude = quota.clone(),
-    }
+    *usage.provider_mut(provider) = quota.clone();
     quota
 }
 
@@ -36,16 +50,14 @@ pub async fn refresh_all(app: AppHandle) -> UsageSnapshot {
 
 /// Shared by the `refresh_all` command and the tray's "Refresh" menu item.
 pub async fn refresh_all_and_emit(app: &AppHandle) -> UsageSnapshot {
-    let codex = providers::codex::refresh(app).await;
-    let claude = providers::claude::refresh(claude_integration_enabled(app));
-
-    let snapshot = {
-        let state = app.state::<AppState>();
-        let mut usage = state.usage.lock().unwrap();
-        usage.codex = codex;
-        usage.claude = claude;
-        usage.clone()
-    };
+    for provider in [
+        ProviderId::Codex,
+        ProviderId::Claude,
+        ProviderId::Antigravity,
+    ] {
+        refresh_provider(app.clone(), provider).await;
+    }
+    let snapshot = app.state::<AppState>().usage.lock().unwrap().clone();
     let _ = app.emit("usage://updated", snapshot.clone());
     snapshot
 }
@@ -53,6 +65,39 @@ pub async fn refresh_all_and_emit(app: &AppHandle) -> UsageSnapshot {
 #[tauri::command]
 pub fn get_settings(app: AppHandle) -> AppSettings {
     app.state::<AppState>().settings.lock().unwrap().clone()
+}
+
+#[tauri::command]
+pub async fn set_provider_monitoring(
+    app: AppHandle,
+    provider: ProviderId,
+    enabled: bool,
+) -> Result<AppSettings, String> {
+    let (preferences, snapshot) = {
+        let state = app.state::<AppState>();
+        let mut current = state.settings.lock().unwrap();
+        let mut next = current.clone();
+        next.monitoring.set_enabled(provider, enabled);
+        settings::save(&app, &next)?;
+        *current = next.clone();
+        let mut usage = state.usage.lock().unwrap();
+        *usage.provider_mut(provider) = if enabled {
+            ProviderQuota::empty(provider)
+        } else {
+            ProviderQuota::disabled(provider)
+        };
+        (next, usage.clone())
+    };
+    let _ = app.emit("usage://updated", snapshot);
+    if !enabled && provider == ProviderId::Codex {
+        providers::codex::stop(&app).await;
+    }
+    if enabled {
+        refresh_provider(app.clone(), provider).await;
+        let snapshot = app.state::<AppState>().usage.lock().unwrap().clone();
+        let _ = app.emit("usage://updated", snapshot);
+    }
+    Ok(preferences)
 }
 
 #[tauri::command]
@@ -132,12 +177,74 @@ async fn set_claude_integration(app: AppHandle, enabled: bool) -> Result<AppSett
     Ok(settings)
 }
 
-fn claude_integration_enabled(app: &AppHandle) -> bool {
+fn antigravity_integration_enabled(app: &AppHandle) -> bool {
     app.state::<AppState>()
         .settings
         .lock()
         .unwrap()
-        .claude_integration_enabled
+        .antigravity_integration_enabled
+}
+
+/// Called by the lightweight cache poll; never spawns a CLI or queries a model.
+pub fn refresh_antigravity_and_emit(app: &AppHandle) {
+    let preferences = app.state::<AppState>().settings.lock().unwrap().clone();
+    let quota = if preferences.monitoring.antigravity {
+        providers::antigravity::refresh(preferences.antigravity_integration_enabled)
+    } else {
+        ProviderQuota::disabled(ProviderId::Antigravity)
+    };
+    let changed = {
+        let state = app.state::<AppState>();
+        let preferences = state.settings.lock().unwrap();
+        let quota = if preferences.monitoring.antigravity {
+            quota
+        } else {
+            ProviderQuota::disabled(ProviderId::Antigravity)
+        };
+        let mut usage = state.usage.lock().unwrap();
+        if usage.antigravity == quota {
+            return;
+        }
+        usage.antigravity = quota;
+        usage.clone()
+    };
+    let _ = app.emit("usage://updated", changed);
+}
+
+#[tauri::command]
+pub fn set_antigravity_integration(app: AppHandle, enabled: bool) -> Result<AppSettings, String> {
+    let state = app.state::<AppState>();
+    let mut current = state.settings.lock().unwrap();
+    let mut next = current.clone();
+    if enabled {
+        if providers::antigravity::detect_path().is_none() {
+            return Err("Antigravity CLI (agy) was not found.".into());
+        }
+        let prepared =
+            antigravity::install::prepare(current.antigravity_previous_status_line.clone())?;
+        next.antigravity_previous_status_line = prepared.previous.clone();
+        next.antigravity_integration_enabled = true;
+        // Save the backup before the CLI can invoke the bridge. If the CLI
+        // settings write fails, restore the app's previous settings as well.
+        settings::save(&app, &next)?;
+        if let Err(error) = prepared.write() {
+            return match settings::save(&app, &current) {
+                Ok(()) => Err(error),
+                Err(rollback) => Err(format!(
+                    "{error}. Could not restore widget settings: {rollback}"
+                )),
+            };
+        }
+    } else {
+        antigravity::install::uninstall(current.antigravity_previous_status_line.as_ref())?;
+        next.antigravity_previous_status_line = None;
+        next.antigravity_integration_enabled = false;
+        settings::save(&app, &next)?;
+    }
+    *current = next.clone();
+    drop(current);
+    refresh_antigravity_and_emit(&app);
+    Ok(next)
 }
 
 #[tauri::command]
@@ -155,9 +262,19 @@ pub async fn get_diagnostics(app: AppHandle) -> Diagnostics {
         Some(path) => providers::detect_version(path).await,
         None => None,
     };
-    let claude_integration_enabled = claude_integration_enabled(&app);
+    let claude_integration_enabled = app
+        .state::<AppState>()
+        .settings
+        .lock()
+        .unwrap()
+        .claude_integration_enabled;
     let claude_cache_updated_at = claude::cache::load().map(|cache| cache.updated_at);
     let claude_settings_path = claude::install::settings_path().map(|p| p.display().to_string());
+    let antigravity_path = providers::antigravity::detect_path();
+    let antigravity_version = match &antigravity_path {
+        Some(path) => providers::detect_version(path).await,
+        None => None,
+    };
 
     Diagnostics {
         app_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -170,6 +287,12 @@ pub async fn get_diagnostics(app: AppHandle) -> Diagnostics {
         claude_integration_enabled,
         claude_cache_updated_at,
         claude_settings_path,
+        antigravity_path: antigravity_path.map(|p| p.display().to_string()),
+        antigravity_version,
+        antigravity_integration_enabled: antigravity_integration_enabled(&app),
+        antigravity_cache_updated_at: antigravity::cache::load().map(|cache| cache.updated_at),
+        antigravity_settings_path: antigravity::install::settings_path()
+            .map(|p| p.display().to_string()),
     }
 }
 

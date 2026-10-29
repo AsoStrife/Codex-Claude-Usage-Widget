@@ -101,4 +101,37 @@ describe('ProviderCard', () => {
     expect(card.text()).toContain('Claude')
     expect(card.html()).toContain('bg-claude')
   })
+
+  it('renders Antigravity bucket names, percentages, balances and disabled states', () => {
+    const card = render(provider({ provider: 'antigravity', plan: 'Pro', fiveHour: null, weekly: null, buckets: [
+      { id: 'gemini-weekly', label: 'Gemini Weekly', remainingPercentage: 63, remainingAmount: null, resetsAt: NOW + 86400, disabled: false },
+      { id: 'credits', label: 'Credits', remainingPercentage: null, remainingAmount: 42, resetsAt: null, disabled: false },
+      { id: 'disabled', label: 'Unavailable model', remainingPercentage: null, remainingAmount: null, resetsAt: null, disabled: true },
+    ] }))
+    expect(card.text()).toContain('Antigravity')
+    expect(card.html()).toContain('bg-antigravity')
+    expect(card.text()).toContain('Gemini Weekly')
+    expect(card.text()).toContain('63% left')
+    expect(card.text()).toContain('42 left')
+    expect(card.text()).toContain('Disabled')
+    expect(card.text()).not.toContain('100% left')
+    expect(card.text()).not.toContain('Not reported')
+    expect(card.text()).toContain('resets in 1d')
+  })
+
+  it('hides expired Antigravity buckets and preserves a reported zero balance', () => {
+    const card = render(provider({ provider: 'antigravity', fiveHour: null, weekly: null, buckets: [
+      { id: 'expired', label: 'Expired', remainingPercentage: 90, remainingAmount: null, resetsAt: NOW, disabled: false },
+      { id: 'live', label: 'Live', remainingPercentage: 0, remainingAmount: null, resetsAt: NOW + 60, disabled: false },
+    ] }))
+    expect(card.text()).not.toContain('Expired')
+    expect(card.text()).toContain('0% left')
+  })
+
+  it('shows Antigravity setup instructions while waiting for its first payload', () => {
+    const card = render(provider({ provider: 'antigravity', status: 'waiting-for-data', fiveHour: null, weekly: null,
+      error: 'Enable Antigravity usage integration in settings.' }))
+    expect(card.text()).toContain('Waiting for Antigravity usage data')
+    expect(card.text()).toContain('Enable Antigravity usage integration in settings.')
+  })
 })

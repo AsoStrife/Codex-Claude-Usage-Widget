@@ -68,6 +68,7 @@ fn quota_from_cache(snapshot: ClaudeUsageCache, now: i64) -> ProviderQuota {
         status,
         five_hour,
         weekly,
+        buckets: Vec::new(),
         plan: None,
         updated_at: Some(snapshot.updated_at),
         source: "claude-bridge".into(),

@@ -20,23 +20,26 @@ function quota(overrides: Partial<ProviderQuota> = {}): ProviderQuota {
 const snapshot = (): UsageSnapshot => ({
   codex: quota(),
   claude: quota({ provider: 'claude', status: 'waiting-for-data', fiveHour: null, updatedAt: null }),
+  antigravity: quota({ provider: 'antigravity', status: 'waiting-for-data', fiveHour: null, updatedAt: null }),
 })
 
 describe('useUsageStore', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
-  it('starts with both providers waiting for data', () => {
+  it('starts with all providers waiting for data', () => {
     const store = useUsageStore()
     expect(store.codex.status).toBe('waiting-for-data')
     expect(store.claude.status).toBe('waiting-for-data')
+    expect(store.antigravity.status).toBe('waiting-for-data')
     expect(store.hasAnyAvailableProvider).toBe(false)
   })
 
-  it('applies a full snapshot to both providers', () => {
+  it('applies a full snapshot to all providers', () => {
     const store = useUsageStore()
     store.applySnapshot(snapshot())
     expect(store.codex.fiveHour?.remainingPercentage).toBe(72)
     expect(store.claude.status).toBe('waiting-for-data')
+    expect(store.antigravity.provider).toBe('antigravity')
     expect(store.hasAnyAvailableProvider).toBe(true)
   })
 
@@ -54,6 +57,17 @@ describe('useUsageStore', () => {
     const store = useUsageStore()
     store.applyProviderUpdate(quota({ status: 'stale' }))
     expect(store.hasAnyAvailableProvider).toBe(true)
+  })
+
+  it('accepts Antigravity bucket updates independently of the other providers', () => {
+    const store = useUsageStore()
+    store.applySnapshot(snapshot())
+    store.applyProviderUpdate(quota({ provider: 'antigravity', plan: 'Pro', fiveHour: null, buckets: [
+      { id: 'gemini-weekly', label: 'Gemini Weekly', remainingPercentage: 63, remainingAmount: null, resetsAt: 500, disabled: false },
+    ] }))
+    expect(store.antigravity.buckets?.[0].remainingPercentage).toBe(63)
+    expect(store.codex.plan).toBe('plus')
+    expect(store.claude.status).toBe('waiting-for-data')
   })
 
   it('does not count unavailable providers', () => {

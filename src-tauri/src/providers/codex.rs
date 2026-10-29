@@ -8,8 +8,9 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Mutex as StdMutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
 use std::time::Duration;
 
 use serde::Deserialize;
@@ -27,6 +28,7 @@ use super::{find_executable, quiet_command};
 type PendingMap = Arc<StdMutex<HashMap<i64, oneshot::Sender<Value>>>>;
 
 pub struct Session {
+    generation: u64,
     stdin: ChildStdin,
     next_id: i64,
     pending: PendingMap,
@@ -38,9 +40,11 @@ pub struct Session {
 #[derive(Default)]
 pub struct CodexState {
     session: TokioMutex<Option<Session>>,
+    next_generation: AtomicU64,
 }
 
 enum SessionStartError {
+    Disabled,
     MissingExecutable,
     Other(String),
 }
@@ -62,7 +66,7 @@ fn default_install_path() -> Option<PathBuf> {
             .join("Codex")
             .join("bin")
             .join("codex.exe");
-        return Some(path);
+        Some(path)
     }
 
     #[cfg(not(windows))]
@@ -78,6 +82,7 @@ pub async fn refresh(app: &AppHandle) -> ProviderQuota {
 
     match ensure_session(app, &path).await {
         Ok(()) => {}
+        Err(SessionStartError::Disabled) => return ProviderQuota::disabled(ProviderId::Codex),
         Err(SessionStartError::MissingExecutable) => {
             return ProviderQuota::not_installed(ProviderId::Codex)
         }
@@ -85,11 +90,20 @@ pub async fn refresh(app: &AppHandle) -> ProviderQuota {
     }
 
     let state = app.state::<AppState>();
-    let result = {
+    let (generation, result) = {
         let mut guard = state.codex.session.lock().await;
+        if !state.settings.lock().unwrap().monitoring.codex {
+            return ProviderQuota::disabled(ProviderId::Codex);
+        }
         match guard.as_mut() {
-            Some(session) => request(session, "account/rateLimits/read", json!({})).await,
-            None => Err("codex app-server session unavailable".to_string()),
+            Some(session) => (
+                Some(session.generation),
+                request(session, "account/rateLimits/read", json!({})).await,
+            ),
+            None => (
+                None,
+                Err("codex app-server session unavailable".to_string()),
+            ),
         }
     };
 
@@ -101,7 +115,10 @@ pub async fn refresh(app: &AppHandle) -> ProviderQuota {
         Err(message) => {
             // The session may have died mid-request; drop it so the next
             // refresh respawns the app-server instead of retrying a dead pipe.
-            *state.codex.session.lock().await = None;
+            let mut guard = state.codex.session.lock().await;
+            if guard.as_ref().map(|session| session.generation) == generation {
+                *guard = None;
+            }
             error_quota(message)
         }
     }
@@ -116,9 +133,16 @@ pub async fn app_server_status(app: &AppHandle) -> &'static str {
     }
 }
 
+pub async fn stop(app: &AppHandle) {
+    *app.state::<AppState>().codex.session.lock().await = None;
+}
+
 async fn ensure_session(app: &AppHandle, path: &std::path::Path) -> Result<(), SessionStartError> {
     let state = app.state::<AppState>();
     let mut guard = state.codex.session.lock().await;
+    if !state.settings.lock().unwrap().monitoring.codex {
+        return Err(SessionStartError::Disabled);
+    }
     if guard.is_some() {
         return Ok(());
     }
@@ -149,9 +173,11 @@ async fn ensure_session(app: &AppHandle, path: &std::path::Path) -> Result<(), S
         .ok_or_else(|| SessionStartError::Other("codex app-server has no stdout".to_string()))?;
 
     let pending: PendingMap = Arc::new(StdMutex::new(HashMap::new()));
-    spawn_reader(app.clone(), stdout, pending.clone());
+    let generation = state.codex.next_generation.fetch_add(1, Ordering::Relaxed);
+    spawn_reader(app.clone(), stdout, pending.clone(), generation);
 
     let mut session = Session {
+        generation,
         stdin,
         next_id: 0,
         pending,
@@ -182,7 +208,12 @@ async fn ensure_session(app: &AppHandle, path: &std::path::Path) -> Result<(), S
 /// Reads newline-delimited JSON messages from the app-server for as long as
 /// it stays alive, resolving pending requests by id and forwarding
 /// `account/rateLimits/updated` push notifications straight into app state.
-fn spawn_reader(app: AppHandle, stdout: tokio::process::ChildStdout, pending: PendingMap) {
+fn spawn_reader(
+    app: AppHandle,
+    stdout: tokio::process::ChildStdout,
+    pending: PendingMap,
+    generation: u64,
+) {
     tauri::async_runtime::spawn(async move {
         let mut lines = BufReader::new(stdout).lines();
         while let Ok(Some(line)) = lines.next_line().await {
@@ -192,17 +223,26 @@ fn spawn_reader(app: AppHandle, stdout: tokio::process::ChildStdout, pending: Pe
             let Ok(value) = serde_json::from_str::<Value>(&line) else {
                 continue;
             };
-            handle_message(&app, &pending, value).await;
+            handle_message(&app, &pending, value, generation).await;
         }
 
         // The app-server process exited; clear the session so the next
         // refresh spawns a new one instead of writing into a dead pipe.
+        pending.lock().unwrap().clear();
         let state = app.state::<AppState>();
-        *state.codex.session.lock().await = None;
+        let mut guard = state.codex.session.lock().await;
+        // An older reader can finish after monitoring has already been
+        // re-enabled. It must not clear the new app-server session.
+        if guard
+            .as_ref()
+            .is_some_and(|session| session.generation == generation)
+        {
+            *guard = None;
+        }
     });
 }
 
-async fn handle_message(app: &AppHandle, pending: &PendingMap, value: Value) {
+async fn handle_message(app: &AppHandle, pending: &PendingMap, value: Value, generation: u64) {
     if let Some(id) = value.get("id").and_then(Value::as_i64) {
         if let Some(sender) = pending.lock().unwrap().remove(&id) {
             let _ = sender.send(value);
@@ -212,17 +252,25 @@ async fn handle_message(app: &AppHandle, pending: &PendingMap, value: Value) {
 
     if value.get("method").and_then(Value::as_str) == Some("account/rateLimits/updated") {
         if let Some(params) = value.get("params") {
-            if let Ok(notification) = serde_json::from_value::<RateLimitsUpdatedParams>(params.clone()) {
+            if let Ok(notification) =
+                serde_json::from_value::<RateLimitsUpdatedParams>(params.clone())
+            {
                 let quota = quota_from_snapshot(notification.rate_limits);
-                apply_and_emit(app, quota);
+                apply_and_emit(app, quota, generation);
             }
         }
     }
 }
 
-fn apply_and_emit(app: &AppHandle, quota: ProviderQuota) {
+fn apply_and_emit(app: &AppHandle, quota: ProviderQuota, generation: u64) {
     let state = app.state::<AppState>();
     let snapshot = {
+        let preferences = state.settings.lock().unwrap();
+        if !preferences.monitoring.codex
+            || state.codex.next_generation.load(Ordering::Relaxed) != generation.wrapping_add(1)
+        {
+            return;
+        }
         let mut usage = state.usage.lock().unwrap();
         usage.codex = quota;
         usage.clone()
@@ -332,6 +380,7 @@ fn quota_from_snapshot(snapshot: RateLimitSnapshotJson) -> ProviderQuota {
         five_hour,
         weekly,
         plan: snapshot.plan_type,
+        buckets: Vec::new(),
         updated_at: Some(now()),
         source: "codex-app-server".into(),
         error: None,
@@ -354,6 +403,7 @@ fn error_quota(message: String) -> ProviderQuota {
         updated_at: None,
         source: "codex-app-server".into(),
         error: Some(message),
+        buckets: Vec::new(),
     }
 }
 

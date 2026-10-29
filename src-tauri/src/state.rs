@@ -32,9 +32,11 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(settings: AppSettings) -> Self {
+        let mut usage = UsageSnapshot::default();
+        usage.apply_monitoring(&settings.monitoring);
         Self {
             settings: Mutex::new(settings),
-            usage: Mutex::new(UsageSnapshot::default()),
+            usage: Mutex::new(usage),
             codex: CodexState::default(),
             tray_anchor: Mutex::new(None),
             popup_pinned: AtomicBool::new(false),

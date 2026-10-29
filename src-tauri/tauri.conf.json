@@ -30,7 +30,7 @@
     }
   },
   "productName": "AI Usage Widget",
-  "version": "0.1.1",
+  "version": "0.1.4",
   "identifier": "com.asostrife.ai-usage-widget",
   "bundle": {
     "icon": [

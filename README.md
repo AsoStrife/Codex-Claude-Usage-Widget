@@ -1,6 +1,6 @@
 # AI Usage Widget
 
-A Windows 11 system tray utility for monitoring OpenAI Codex and Anthropic Claude Code subscription quota consumption. Displays real-time usage percentages, reset countdowns, and integration status—all accessible via an elegant floating popup.
+A Windows 11 system tray utility for monitoring OpenAI Codex, Anthropic Claude Code, and Google Antigravity CLI subscription quota consumption. Displays usage percentages, reset countdowns, and integration status—all accessible via an elegant floating popup.
 
 <div align="center">
 
@@ -26,9 +26,9 @@ Click the system tray icon to reveal a compact floating widget:
 
 - **Quota Monitoring** — Real-time consumption percentages for both 5-hour and weekly allocation windows
 - **Reset Countdowns** — Human-readable countdown timers for when quotas reset
-- **Dual Provider Support** — Integrated monitoring for both Codex (OpenAI) and Claude Code (Anthropic)
+- **Three Provider Support** — Integrated monitoring for Codex (OpenAI), Claude Code (Anthropic), and Antigravity CLI (Google)
 - **Native System Tray** — Minimalist floating popup, no taskbar window, no background process
-- **Automatic Detection** — Detects installed Codex and Claude Code installations without configuration
+- **Automatic Detection** — Detects installed Codex, Claude Code, and Antigravity CLI installations without configuration
 - **Secure Integration** — No credentials stored, no authentication files accessed, local-only operation
 - **Multi-Monitor Support** — Intelligent positioning across multiple displays with DPI awareness
 - **Smart Refresh** — Real-time updates when available, fallback polling with bounded backoff
@@ -51,8 +51,9 @@ Click the system tray icon to reveal a compact floating widget:
 
 - **Codex CLI** — Detected automatically if installed; widget displays "Not installed" if absent
 - **Claude Code** — Detected automatically if installed; widget displays "Not installed" if absent
+- **Antigravity CLI (`agy`)** — Detected automatically; enable its usage integration in settings, then run `/usage` inside the CLI
 
-Neither provider is required; the widget gracefully handles missing or unauthenticated installations.
+No provider is required; the widget gracefully handles missing or unauthenticated installations.
 
 ### Development Setup
 
@@ -132,6 +133,21 @@ Claude Code forwards rate-limit data to the configured status-line command. The 
 
 **First Run:** Claude displays "Waiting for Claude usage data" until Claude Code is used at least once.
 
+### Antigravity CLI (Google)
+
+Enable **Antigravity usage integration** in the widget settings, then open or restart `agy` and run `/usage` (`/quota` also works). The integration uses the CLI's [documented status-line JSON feed](https://antigravity.google/docs/cli/statusline/), available in recent Antigravity CLI versions; older versions that omit `quota` stay in the waiting state.
+
+- Automatically detects `agy` on PATH or in its default install directory.
+- Installs `ai-usage-widget.exe --antigravity-statusline-bridge` in `~/.gemini/antigravity-cli/settings.json`.
+- Preserves and forwards an existing custom status-line command. Disabling restores the complete original `statusLine` configuration; if you change the command yourself, the widget leaves your new command in place.
+- Keeps the built-in Antigravity status line when no custom command was enabled.
+- Displays each reported quota bucket by name, with its remaining percentage and reset date/countdown. Absolute balances are displayed as amounts, and disabled buckets are marked explicitly.
+- Does not assume all buckets follow a 5-hour/weekly schedule or infer a percentage from a credit balance.
+- Saves only sanitized quota metadata and the plan tier to `%APPDATA%\com.asostrife.ai-usage-widget\antigravity-usage.json`. It does not retain session IDs, email addresses, transcripts, prompts, or credentials.
+- Reads the local cache every second. Fresh data arrives while the CLI is running; the widget marks snapshots older than 30 minutes as stale and hides expired quota windows until the CLI reports fresh data.
+
+The Refresh button rereads the latest local snapshot. Run `/usage` inside Antigravity CLI to request fresh quotas from its backend. Antigravity usage is displayed independently from a direct Claude or Codex subscription.
+
 ## Architecture
 
 ### Technology Stack
@@ -195,6 +211,14 @@ Codex-Code-Widget/
 **Architectural Principle:** Provider-specific concepts (JSON-RPC, status-line payloads, window classifications) remain encapsulated in the Rust backend. The Vue layer works exclusively with a normalized `ProviderQuota` model, ensuring UI independence from provider implementation details.
 
 ## Usage & Behavior
+
+### Provider tabs and monitoring
+
+The main tab contains Codex and Claude; Antigravity has its own tab. Opening the popup returns to the main tab when one of its providers is enabled. Tabs with no enabled providers are hidden.
+
+In **Settings → Monitored providers**, independently enable or disable Codex, Claude, and Antigravity. Choices are saved across restarts. Disabled providers are hidden and skipped by refresh operations; disabling Codex also stops its app-server process. If all providers are disabled, the widget offers a link back to Settings.
+
+**Usage connections** contains the Claude and Antigravity status-line setup controls. Monitoring preferences are independent of these connections, so you can hide a subscription and enable it again later with its connection still configured. Connection details and diagnostics can be expanded in Settings.
 
 ### Interaction Model
 
@@ -275,6 +299,7 @@ npm run build:exe
 
 ### Codex quota not updating
 
+- Windows error 448 (untrusted mount point): update to 0.1.2 or newer, which resolves installation junctions before launching Codex. Quit the running widget from the tray before opening the updated executable; otherwise Windows may bring the old instance back to the foreground.
 - Verify Codex CLI availability: `codex app-server --help`
 - Check widget diagnostics (Settings → Diagnostics)
 - Rebuild: `npm run build:exe`
@@ -285,6 +310,13 @@ npm run build:exe
 - Enable Claude integration in widget settings
 - Use Claude Code at least once to trigger initial data fetch
 - Review diagnostics output
+
+### Antigravity quota not updating
+
+- Enable Antigravity usage integration, then restart `agy` and run `/usage`.
+- Version 0.1.3 fixes Antigravity's Windows command quoting for widget paths containing spaces (such as `C:\Program Files`). It automatically repairs older widget bridge commands when the integration is enabled. Restart Antigravity after a repair so its current session loads the corrected command.
+- The Windows launcher uses an unquoted path when possible, a Windows short filename for paths containing spaces, and a PowerShell byte-stream launcher if short filenames are unavailable. No execution-policy changes are needed.
+- If you choose a different custom status-line command yourself, the widget leaves it alone. Re-enable the integration explicitly to connect the widget again.
 
 ### High CPU usage
 

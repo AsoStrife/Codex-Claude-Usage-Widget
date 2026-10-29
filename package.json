@@ -1,9 +1,9 @@
 {
   "name": "ai-usage-widget",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.4",
   "type": "module",
-  "description": "Windows 11 tray widget for monitoring Codex and Claude Code subscription usage",
+  "description": "Windows 11 tray widget for monitoring Codex, Claude Code and Antigravity CLI subscription usage",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",

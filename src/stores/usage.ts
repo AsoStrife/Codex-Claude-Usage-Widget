@@ -12,6 +12,7 @@ export const useUsageStore = defineStore('usage', () => {
   const providers = ref<Record<ProviderId, ProviderQuota>>({
     codex: emptyQuota('codex'),
     claude: emptyQuota('claude'),
+    antigravity: emptyQuota('antigravity'),
   })
   const refreshing = ref(false)
   const lastError = ref<string | null>(null)
@@ -24,12 +25,13 @@ export const useUsageStore = defineStore('usage', () => {
 
   const codex = computed(() => providers.value.codex)
   const claude = computed(() => providers.value.claude)
+  const antigravity = computed(() => providers.value.antigravity)
   const hasAnyAvailableProvider = computed(() =>
     Object.values(providers.value).some((p) => p.status === 'ready' || p.status === 'stale'),
   )
 
   function applySnapshot(snapshot: UsageSnapshot) {
-    providers.value = { codex: snapshot.codex, claude: snapshot.claude }
+    providers.value = { codex: snapshot.codex, claude: snapshot.claude, antigravity: snapshot.antigravity }
   }
 
   function applyProviderUpdate(payload: ProviderQuota) {
@@ -116,6 +118,7 @@ export const useUsageStore = defineStore('usage', () => {
     now,
     codex,
     claude,
+    antigravity,
     hasAnyAvailableProvider,
     initialize,
     refreshAll,

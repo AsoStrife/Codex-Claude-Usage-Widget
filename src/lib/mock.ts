@@ -1,4 +1,4 @@
-import type { UsageSnapshot } from '../types/usage'
+import { emptyQuota, type UsageSnapshot } from '../types/usage'
 
 /** Fixture used only when the UI runs in a plain browser (`npm run dev`). */
 export function mockSnapshot(): UsageSnapshot {
@@ -23,6 +23,17 @@ export function mockSnapshot(): UsageSnapshot {
       updatedAt: now - 8,
       source: 'mock',
       error: null,
+    },
+    antigravity: {
+      ...emptyQuota('antigravity'),
+      status: 'ready',
+      buckets: [
+        { id: 'gemini-5h', label: 'Gemini 5h', remainingPercentage: 78, remainingAmount: null, resetsAt: now + 7200, disabled: false },
+        { id: 'gemini-weekly', label: 'Gemini Weekly', remainingPercentage: 93, remainingAmount: null, resetsAt: now + 320000, disabled: false },
+      ],
+      plan: 'Pro',
+      updatedAt: now - 8,
+      source: 'mock',
     },
   }
 }

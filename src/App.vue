@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { PROVIDER_LABEL, type ProviderId } from './types/usage'
 import { useUsageStore } from './stores/usage'
 import { useSettingsStore } from './stores/settings'
 import { invoke, isTauri, listen } from './lib/tauri'
@@ -43,7 +44,40 @@ function syncWindowHeight() {
   })
 }
 
-const providerList = computed(() => [usage.codex, usage.claude])
+type TabId = 'main' | 'antigravity'
+const activeTab = ref<TabId>('main')
+const tabGroups: { id: TabId; providers: ProviderId[] }[] = [
+  { id: 'main', providers: ['codex', 'claude'] },
+  { id: 'antigravity', providers: ['antigravity'] },
+]
+const availableTabs = computed(() => tabGroups.map((group) => {
+  const providers = group.providers.filter((id) => settings.settings.monitoring[id])
+  return { id: group.id, providers, label: providers.map((id) => PROVIDER_LABEL[id]).join(' & ') }
+}).filter((group) => group.providers.length > 0))
+watch(availableTabs, (tabs) => {
+  if (!tabs.some((tab) => tab.id === activeTab.value)) activeTab.value = tabs[0]?.id ?? 'main'
+})
+const currentTab = computed(() => availableTabs.value.find((tab) => tab.id === activeTab.value) ?? availableTabs.value[0])
+const providerList = computed(() => (currentTab.value?.providers ?? []).map((id) => usage[id]))
+
+function resetTab() {
+  activeTab.value = availableTabs.value.find((tab) => tab.id === 'main')?.id ?? availableTabs.value[0]?.id ?? 'main'
+}
+
+function onTabKeydown(event: KeyboardEvent, index: number) {
+  const tabs = availableTabs.value
+  let next = index
+  if (event.key === 'ArrowRight') next = (index + 1) % tabs.length
+  else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length
+  else if (event.key === 'Home') next = 0
+  else if (event.key === 'End') next = tabs.length - 1
+  else return
+  event.preventDefault()
+  const tab = tabs[next]
+  if (!tab) return
+  activeTab.value = tab.id
+  document.getElementById(`tab-${tab.id}`)?.focus()
+}
 
 async function togglePin() {
   if (pinBusy.value) return
@@ -123,6 +157,7 @@ onMounted(() => {
   // The backend re-emits this whenever the popup is revealed from the tray.
   void listen('popup://shown', () => {
     settingsOpen.value = false
+    resetTab()
     void usage.refreshAll()
   })
     .then((unlisten) => {
@@ -158,8 +193,39 @@ onBeforeUnmount(() => {
       @move-start="beginMove()"
     />
 
-    <main class="max-h-[420px] space-y-2.5 overflow-y-auto px-3.5 pb-3">
+    <div v-if="availableTabs.length > 1" role="tablist" aria-label="Usage providers" class="mx-3.5 mb-3 flex rounded-lg border border-hairline bg-panel-raised/50 p-1">
+      <button
+        v-for="(tab, index) in availableTabs"
+        :id="`tab-${tab.id}`"
+        :key="tab.id"
+        type="button"
+        role="tab"
+        :aria-selected="activeTab === tab.id"
+        :aria-controls="`panel-${tab.id}`"
+        :tabindex="activeTab === tab.id ? 0 : -1"
+        class="flex-1 rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors focus-visible:ring-1 focus-visible:ring-ink-faint focus-visible:outline-none"
+        :class="activeTab === tab.id ? 'bg-hairline/70 text-ink' : 'text-ink-faint hover:text-ink-dim'"
+        @click="activeTab = tab.id"
+        @keydown="onTabKeydown($event, index)"
+      >{{ tab.label }}</button>
+    </div>
+
+    <main
+      :id="`panel-${currentTab?.id ?? 'main'}`"
+      :role="availableTabs.length > 1 ? 'tabpanel' : undefined"
+      :aria-labelledby="availableTabs.length > 1 ? `tab-${currentTab?.id}` : undefined"
+      :aria-label="availableTabs.length === 1 ? currentTab?.label : undefined"
+      :tabindex="availableTabs.length > 1 ? 0 : undefined"
+      class="space-y-2.5 overflow-y-auto px-3.5 pb-3 focus-visible:outline-none"
+      :class="settingsOpen ? 'max-h-[240px]' : 'max-h-[420px]'"
+    >
       <ProviderCard v-for="quota in providerList" :key="quota.provider" :quota="quota" :now="usage.now" />
+      <div v-if="!providerList.length" class="rounded-panel border border-hairline bg-panel-raised/80 px-4 py-7 text-center">
+        <p class="text-[12px] text-ink-dim">No providers enabled</p>
+        <button type="button" class="mt-2 rounded-md px-2 py-1 text-[11px] text-ink underline underline-offset-4 focus-visible:ring-1 focus-visible:ring-ink-faint focus-visible:outline-none" @click="!settingsOpen && toggleSettings()">
+          Choose providers in Settings
+        </button>
+      </div>
     </main>
 
     <SettingsPanel
@@ -171,6 +237,8 @@ onBeforeUnmount(() => {
       :error="settings.lastError"
       @set-autostart="settings.setStartWithWindows($event)"
       @set-claude-integration="settings.setClaudeIntegration($event)"
+      @set-antigravity-integration="settings.setAntigravityIntegration($event)"
+      @set-provider-monitoring="settings.setProviderMonitoring"
     />
 
     <WidgetFooter

@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod antigravity;
 mod claude;
 mod commands;
 mod providers;
@@ -24,7 +25,7 @@ const MAX_REFRESH_SECONDS: u64 = 3600;
 fn main() {
     // Must come first: in bridge mode the process is a short-lived filter for
     // Claude Code's status line and must never build a window or a tray icon.
-    if claude::bridge::run_if_requested() {
+    if claude::bridge::run_if_requested() || antigravity::bridge::run_if_requested() {
         return;
     }
 
@@ -32,7 +33,10 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             window::show_popup_default(app);
         }))
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))
         .setup(|app| {
             let handle = app.handle().clone();
 
@@ -57,6 +61,7 @@ fn main() {
                 });
             }
 
+            spawn_antigravity_cache_loop(handle.clone());
             spawn_refresh_loop(handle);
 
             Ok(())
@@ -66,9 +71,11 @@ fn main() {
             commands::refresh_provider,
             commands::refresh_all,
             commands::get_settings,
+            commands::set_provider_monitoring,
             commands::set_start_with_windows,
             commands::enable_claude_integration,
             commands::disable_claude_integration,
+            commands::set_antigravity_integration,
             commands::get_diagnostics,
             commands::get_popup_pinned,
             commands::set_popup_pinned,
@@ -94,6 +101,17 @@ fn spawn_refresh_loop(handle: tauri::AppHandle) {
                 seconds.clamp(MIN_REFRESH_SECONDS, MAX_REFRESH_SECONDS)
             };
             tokio::time::sleep(Duration::from_secs(interval)).await;
+        }
+    });
+}
+
+/// The bridge writes asynchronously as the user works in Antigravity. Read
+/// its small local snapshot frequently without polling any remote service.
+fn spawn_antigravity_cache_loop(handle: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            commands::refresh_antigravity_and_emit(&handle);
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
     });
 }
